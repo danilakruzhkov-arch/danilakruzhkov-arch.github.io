@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Данила Кружков — стратегия, операции, финансы, AI</title>
+<meta name="description" content="Стратег и операционный лидер: McKinsey, Альфа-Банк, Банк Открытие, Family Office UHNWI, AI Founder.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #0066cc;
+    --blue-focus: #0071e3;
+    --blue-on-dark: #2997ff;
+    --ink: #1d1d1f;
+    --muted: #7a7a7a;
+    --muted-80: #333333;
+    --canvas: #ffffff;
+    --parchment: #f5f5f7;
+    --tile-dark: #272729;
+    --tile-dark-2: #2a2a2c;
+    --on-dark: #ffffff;
+    --on-dark-muted: #cccccc;
+    --hairline: #e0e0e0;
+    --hairline-dark: rgba(255,255,255,.14);
+    --draft: #c0392b;
+    --draft-on-dark: #ff8a75;
+    --r-sm: 8px;
+    --r-lg: 18px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.47;
+    letter-spacing: -0.2px;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+  .nb { white-space: nowrap; }
+
+  h1, h2, h3 {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.32px;
+  }
+
+  /* черновые куски: снять класс draft, когда текст утверждён.
+     Подсветка выключена для публичной версии — раскомментировать на время вычитки:
+  .draft { color: var(--draft) !important; }
+  .draft * { color: var(--draft) !important; }
+  .tile-dark .draft, .tile-dark .draft * { color: var(--draft-on-dark) !important; }
+  */
+
+
+  /* global nav — чёрная полоса 44px */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(0,0,0,.92); backdrop-filter: saturate(180%) blur(20px);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 44px; }
+  .nav .logo { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: -0.12px; }
+  .nav ul { display: flex; gap: 28px; list-style: none; }
+  .nav ul a { color: rgba(255,255,255,.82); font-size: 12px; font-weight: 400; letter-spacing: -0.12px; }
+  .nav ul a:hover { color: #fff; text-decoration: none; }
+  .nav .cta { display: flex; gap: 12px; align-items: center; }
+  .nav .cta a { font-size: 12px; color: rgba(255,255,255,.82); letter-spacing: -0.12px; }
+  .nav .cta a.pill {
+    background: var(--blue); color: #fff; border-radius: 9999px; padding: 5px 13px; font-weight: 400;
+  }
+  .nav .cta a.pill:hover { background: var(--blue-focus); text-decoration: none; }
+
+  /* hero — белый тайл */
+  .hero { padding: 32px 0 28px; background: var(--canvas); }
+  .hero-grid {
+    display: grid; grid-template-columns: 1fr 240px; gap: 0 48px; align-items: center;
+    grid-template-areas: "kicker photo" "main photo" "bottom photo";
+  }
+  .hero-grid .kicker { grid-area: kicker; align-self: end; }
+  .hero-main { grid-area: main; }
+  .hero-bottom { grid-area: bottom; align-self: start; }
+  .kicker {
+    display: inline-block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin-bottom: 14px;
+  }
+  .hero h1 { font-size: 62px; line-height: 1.07; letter-spacing: -0.9px; margin-bottom: 10px; }
+  .hero .subtitle { font-size: 22px; font-weight: 600; letter-spacing: -0.45px; color: var(--ink); margin-bottom: 12px; }
+  .hero .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--hairline); border-radius: 9999px; color: var(--muted-80);
+    padding: 5px 14px; font-size: 13px; font-weight: 600; margin: 2px 0 16px; letter-spacing: -0.12px;
+  }
+  .hero .badge::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: #34c759;
+  }
+  .hero p.lead { font-size: 21px; color: var(--muted-80); margin-bottom: 18px; font-weight: 300; letter-spacing: 0; }
+  .contacts { display: flex; flex-wrap: wrap; gap: 8px 0; font-size: 16px; font-weight: 400; align-items: center; }
+  .contacts a { padding: 0 20px; border-left: 1px solid var(--hairline); line-height: 1.2; }
+  .contacts a:first-child { padding-left: 0; border-left: none; }
+  .photo {
+    aspect-ratio: 4/5; border-radius: var(--r-lg); overflow: hidden; background: var(--parchment);
+    max-width: 240px; justify-self: end; width: 100%;
+    grid-area: photo; align-self: center;
+  }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* stats — пергаментная полоса */
+  .stats-band { background: var(--parchment); padding: 22px 0; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat {
+    background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    padding: 18px 20px;
+  }
+  .stat .label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .stat .value { font-size: 30px; font-weight: 600; letter-spacing: -0.45px; margin-bottom: 4px; }
+  .stat .note { font-size: 13.5px; color: var(--muted-80); line-height: 1.35; letter-spacing: -0.12px; }
+
+  /* sections */
+  section { padding: 40px 0; }
+  .sec-kicker { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  h2 { font-size: 32px; letter-spacing: -0.45px; line-height: 1.12; margin-bottom: 10px; }
+  .sec-intro { color: var(--muted-80); margin-bottom: 28px; font-size: 15px; }
+  /* заголовок секции слева + пояснение справа (как в резюме-образце) */
+  .sec-head { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px 48px; align-items: end; margin-bottom: 28px; }
+  .sec-head h2 { margin-bottom: 0; }
+  .sec-head .sec-intro { margin-bottom: 4px; }
+  @media (max-width: 860px) {
+    .sec-head { grid-template-columns: 1fr; align-items: start; }
+    .sec-head .sec-intro { margin-bottom: 0; }
+  }
+
+  /* positioning — белый тайл */
+  .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .pos {
+    background: var(--parchment); border-radius: var(--r-lg); padding: 22px 20px;
+  }
+  .pos .num { display: inline; font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 10px; }
+  .pos h3 { display: inline; font-size: 16px; letter-spacing: -0.25px; }
+  .pos p { font-size: 13.5px; color: var(--muted-80); letter-spacing: -0.12px; margin-top: 8px; }
+  /* results — тёмный тайл */
+  .tile-dark { background: var(--tile-dark); color: var(--on-dark); }
+  .tile-dark .sec-kicker { color: var(--on-dark-muted); }
+  .tile-dark h2 { color: var(--on-dark); }
+  .tile-dark .sec-intro { color: var(--on-dark-muted); }
+  .tile-dark a { color: var(--blue-on-dark); }
+  .case-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .case {
+    background: var(--tile-dark-2); border: 1px solid var(--hairline-dark); border-radius: var(--r-lg);
+    padding: 22px 20px;
+  }
+  .case .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--on-dark-muted); font-weight: 600; }
+  .case .metric { font-size: 22px; font-weight: 600; letter-spacing: -0.37px; color: var(--on-dark); margin: 4px 0 2px; }
+  .case h3 { font-size: 15px; letter-spacing: -0.25px; color: var(--on-dark); margin-bottom: 12px; }
+  .case dl { font-size: 13px; display: grid; gap: 8px; }
+  .case dt { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--on-dark-muted); font-weight: 600; margin-bottom: 1px; }
+  .case dd { color: var(--on-dark-muted); letter-spacing: -0.12px; }
+
+  /* experience — белый тайл */
+  .cv-head { display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: start; margin-bottom: 24px; }
+  .cv-buttons { display: flex; gap: 10px; }
+  .btn {
+    display: inline-block; padding: 9px 20px; border-radius: 9999px; font-size: 14px; font-weight: 400;
+    border: 1px solid var(--blue); color: var(--blue); letter-spacing: -0.12px;
+  }
+  .btn:hover { text-decoration: none; }
+  .btn:active { transform: scale(0.95); }
+  .btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn.primary:hover { background: var(--blue-focus); }
+  .job { display: grid; grid-template-columns: 170px 1fr; gap: 22px; padding: 20px 0; border-top: 1px solid var(--hairline); }
+  .job .when { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding-top: 3px; }
+  .job .where { font-size: 12px; color: var(--muted); margin-top: 3px; text-transform: none; letter-spacing: -0.12px; font-weight: 400; }
+  .job h3 { font-size: 17px; letter-spacing: -0.25px; }
+  .job .role { font-size: 14px; color: var(--muted-80); font-weight: 600; margin-bottom: 8px; letter-spacing: -0.12px; }
+  .job ul { list-style: none; display: grid; gap: 6px; font-size: 13.5px; color: var(--muted-80); }
+  .job ul li { padding-left: 16px; position: relative; letter-spacing: -0.12px; }
+  .job ul li::before { content: ""; position: absolute; left: 0; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--hairline); }
+  .job strong { color: var(--ink); font-weight: 600; }
+
+  .edu-skills { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; margin-top: 8px; }
+  .panel { background: var(--parchment); border-radius: var(--r-lg); padding: 20px 22px; }
+  .panel h3 { font-size: 14px; letter-spacing: -0.22px; margin-bottom: 10px; }
+  .panel p, .panel li { font-size: 13px; color: var(--muted-80); letter-spacing: -0.12px; }
+  .panel ul { list-style: none; display: grid; gap: 7px; }
+  .panel .skill-line strong { color: var(--ink); font-weight: 600; }
+
+  /* projects — пергаментный тайл */
+  .tile-parchment { background: var(--parchment); }
+  .proj-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .tile-parchment .pos { background: var(--canvas); border: 1px solid var(--hairline); }
+
+  /* footer — пергамент */
+  footer { background: var(--parchment); border-top: 1px solid var(--hairline); color: var(--muted-80); padding: 36px 0 40px; }
+  footer .wrap { display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: center; }
+  footer .name { font-size: 16px; font-weight: 600; letter-spacing: -0.25px; color: var(--ink); margin-bottom: 4px; }
+  footer .sub { font-size: 13px; letter-spacing: -0.12px; }
+  footer .links { display: flex; gap: 18px; font-size: 13.5px; }
+  footer .fine { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  @media (max-width: 860px) {
+    .case-grid, .edu-skills, .cv-head { grid-template-columns: 1fr; }
+    .hero-grid {
+      grid-template-columns: 1fr 170px; gap: 8px 20px; align-items: start;
+      grid-template-areas: "kicker kicker" "main photo" "bottom bottom";
+    }
+    .photo { max-width: 170px; justify-self: end; align-self: start; }
+    .hero-bottom { margin-top: 10px; }
+    .pos-grid, .proj-grid, .stats { grid-template-columns: 1fr 1fr; }
+    .hero h1 { font-size: 34px; }
+    .hero .subtitle { font-size: 19px; }
+    .hero p.lead { font-size: 16px; }
+    .contacts { flex-wrap: wrap; gap: 6px 12px; }
+    .contacts a { border-left: none; padding: 0; }
+    .contacts a:not(:last-child)::after { content: "|"; color: #c5c5c7; margin-left: 12px; font-weight: 300; }
+    .job { grid-template-columns: 1fr; gap: 6px; }
+    .nav ul { display: none; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 20px; }
+    .pos-grid, .proj-grid, .stats { grid-template-columns: 1fr; }
+    .hero-grid { grid-template-columns: 1fr 120px; gap: 8px 16px; }
+    .photo { max-width: 120px; margin-top: 0; }
+    .hero h1 { font-size: 30px; }
+    .hero .subtitle { font-size: 16px; }
+    .hero p.lead { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+
+<header>
+  <div class="wrap nav">
+    <div class="logo">Данила Кружков</div>
+    <ul>
+      <li><a href="#positioning">Профиль</a></li>
+      <li><a href="#experience">Опыт</a></li>
+      <li><a href="#results">Результаты</a></li>
+      <li><a href="#projects">Проекты</a></li>
+    </ul>
+    <div class="cta">
+      <a href="mailto:danilakruzhkov@gmail.com">Email</a>
+      <a class="pill" href="assets/Danila_Kruzhkov_CV.pdf" download>Резюме PDF</a>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <span class="kicker"><span class="nb">ex McKinsey ·</span> <span class="nb">ex Альфа-Банк ·</span> <span class="nb">ex Банк Открытие ·</span> <span class="nb">ex Family Office UHNWI ·</span> <span class="nb">AI Founder ·</span> <span class="nb">Мехмат МГУ</span></span>
+      <div class="hero-main">
+        <h1>Данила Кружков</h1>
+        <div class="subtitle"><span class="nb">Стратегия ·</span> <span class="nb">PMO и проекты ·</span> <span class="nb">Операционное управление ·</span> <span class="nb">Финансы ·</span> <span class="nb">AI автоматизация</span></div>
+        <div class="badge">Открыт к предложениям</div>
+      </div>
+      <div class="hero-bottom">
+        <p class="lead">Управленец: стратег, проектный и операционный лидер с <span class="js-years">13+</span> годами опыта в консалтинге, банках и стартапах.</p>
+        <div class="contacts">
+          <a href="mailto:danilakruzhkov@gmail.com">danilakruzhkov@gmail.com</a>
+          <a href="tel:+79853381407">+7 985 338 14 07</a>
+          <a href="https://t.me/DanilaKrv">@DanilaKrv</a>
+        </div>
+      </div>
+      <div class="photo"><img src="assets/photo.jpg" alt="Данила Кружков"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-band">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Опыт работы</div>
+        <div class="value"><span class="js-years">13+</span> лет</div>
+        <div class="note">управленческий консалтинг, банки, family office, собственный бизнес</div>
+      </div>
+      <div class="stat">
+        <div class="label">Портфель PMO</div>
+        <div class="value">350+ проектов</div>
+        <div class="note">портфель розничных продуктов Альфа-Банка: 7 клиентских путей, 600 человек, бюджет $15 млн</div>
+      </div>
+      <div class="stat">
+        <div class="label">Запуск направления</div>
+        <div class="value">$6B оборота</div>
+        <div class="note">новое банковское направление в Турции за 12 месяцев: международные компании и UHNWI</div>
+      </div>
+      <div class="stat">
+        <div class="label">Собственный бизнес</div>
+        <div class="value">0 → 1 <span class="nb">(→ N)</span></div>
+        <div class="note">от идеи до устойчивой прибыли на AI-платформе: окупаемость юнита 2 месяца, маржа 40%+</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POSITIONING -->
+<section id="positioning">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <div class="sec-kicker">Позиционирование</div>
+        <h2>От стратегии до внедрения проектов и работающих процессов</h2>
+      </div>
+      <p class="sec-intro">Соединяю стратегию, финансы и технологии: перевожу цели бизнеса в операционную модель, цифры и автоматизированные процессы с измеримым результатом.</p>
+    </div>
+
+    <div class="pos-grid">
+      <div class="pos">
+        <div class="num">01</div>
+        <h3>Стратегия и финансы</h3>
+        <p>Стратегии бизнеса и направлений, финансовые модели и оценка компаний (three statement, DCF), юнит-экономика, инвестиционный анализ, ценообразование.</p>
+      </div>
+      <div class="pos">
+        <div class="num">02</div>
+        <h3>Операционное управление и PMO</h3>
+        <p>Операционные модели, портфельное управление, оценка и приоритизация проектов, координация продуктовых команд, KPI и P&amp;L, кросс-функциональное лидерство, антикризисное управление и трансформация.</p>
+      </div>
+      <div class="pos">
+        <div class="num">03</div>
+        <h3>AI продукты и сквозная автоматизация</h3>
+        <p>Сквозная AI-автоматизация операций на Claude, ChatGPT и n8n: чат-боты продаж, сайты и порталы, базы данных и обработка данных, автоматическая управленческая отчётность.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- EXPERIENCE: строго из cv-1p-ru.md -->
+<section id="experience">
+  <div class="wrap">
+    <div class="cv-head">
+      <div>
+        <div class="sec-kicker">Карьерный путь</div>
+        <h2>Опыт</h2>
+      </div>
+      <div class="cv-buttons">
+        <a class="btn primary" href="assets/Danila_Kruzhkov_CV.pdf" download>Скачать PDF</a>
+        <a class="btn" href="https://linkedin.com/in/danila-kruzhkov">LinkedIn ↗</a>
+        <a class="btn" href="https://hh.ru/resume/2a8f6f90ff072989c00039ed1f685934376c79">HH.ru ↗</a>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when">07/2024 — н. вр.<div class="where">удалённо</div></div>
+      <div>
+        <h3>ClipPoints</h3>
+        <div class="role">Founder &amp; CEO</div>
+        <ul>
+          <li>Запуск с нуля прибыльного сервисного бизнеса и вывод его на операционную модель, работающую без ежедневного участия основателя: <strong>маржа 40%+</strong>, окупаемость точки около 2 месяцев, <strong>сквозная конверсия 30%</strong></li>
+          <li>Полный управленческий контур: стратегия, юнит-экономика, ценообразование, найм, стандарты качества, управленческая отчётность</li>
+          <li>Операционный конвейер автоматизирован end to end на AI: платформа продаж в реальном времени, чат-боты, медиа-конвейер, генерация контента</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when">01/2023 — 06/2024<div class="where">ОАЭ / Турция</div></div>
+      <div>
+        <h3>Family Office (UHNWI)</h3>
+        <div class="role">Strategy &amp; Investment Lead</div>
+        <ul>
+          <li>Запуск корпоративного обслуживания нового клиентского сегмента в турецком банке (международные компании и UHNWI): <strong>$6B годового оборота направления за 12 месяцев</strong></li>
+          <li>Построение операционной и коммерческой модели направления: система продаж, сервис, регламенты и KPI</li>
+          <li>Финансовое моделирование, инвестиционный анализ и стратегии для проектов и холдинговых структур семьи (ОАЭ / Турция)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when">12/2020 — 12/2022<div class="where">Москва</div></div>
+      <div>
+        <h3>Банк Открытие</h3>
+        <div class="role">Управляющий директор по стратегии розничного бизнеса</div>
+        <ul>
+          <li>Разработка и операционализация стратегии розничного бизнеса: бизнес-модель, анализ рынка и конкурентов, зоны роста по ключевым продуктам</li>
+          <li>Инициативы роста доходности: оптимизация тарифов, улучшение воронок продаж, повышение кросс-продаж; сегментная стратегия привлечения клиентов</li>
+          <li><strong>Участие в подготовке и реализации сделки по продаже банка стратегическому инвестору</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when">09/2019 — 12/2020<div class="where">Москва</div></div>
+      <div>
+        <h3>Альфа-Банк</h3>
+        <div class="role">Руководитель направления планирования и стратегии Клиентских путей Розничного бизнеса</div>
+        <ul>
+          <li>Построение <strong>PMO для портфеля 350+ проектов</strong>: сроки, риски, executive-отчётность</li>
+          <li class="draft">Координация <strong>7 клиентских путей</strong> розничного бизнеса: приоритизация инициатив, ресурсы, бюджеты, кросс-функциональное взаимодействие</li>
+          <li>Кросс-продуктовые стратегии и инициативы повышения доходности; антикризисные меры 2020 года</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when">10/2015 — 09/2019<div class="where">Москва</div></div>
+      <div>
+        <h3>McKinsey &amp; Company</h3>
+        <div class="role">Analytics Specialist</div>
+        <ul>
+          <li><strong>10+ консалтинговых проектов</strong> в банках, металлургии и машиностроении (Россия и Восточная Европа): стратегия, операционная эффективность, трансформация — от анализа до управления внедрением инициатив</li>
+          <li><strong>30+ проектных предложений</strong>: цели и структура проектов, коммерческие условия; участие в запуске 3+ новых проектов</li>
+          <li>Финансовое моделирование для клиентских кейсов: three-statement модели, DCF, sensitivity-анализ</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when">03/2013 — 09/2015<div class="where">Москва</div></div>
+      <div>
+        <h3>McKinsey &amp; Company</h3>
+        <div class="role">Координатор отдела part-time сотрудников</div>
+        <ul>
+          <li>Построение и развитие отдела part-time сотрудников (30+ человек): процессы, рекрутинг, распределение задач, контроль качества</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="edu-skills">
+      <div class="panel">
+        <h3>Образование</h3>
+        <p><strong>МГУ им. Ломоносова</strong><br>Механико-математический факультет, кафедра теории вероятностей · Специалист, 2014</p>
+        <p style="margin-top:10px">Диплом: «Вложение Скорохода в геометрическое броуновское движение и его применения»</p>
+      </div>
+      <div class="panel">
+        <h3>Навыки</h3>
+        <ul>
+          <li class="skill-line"><strong>Финансы:</strong> финансовое моделирование (three-statement, DCF) · FP&amp;A и бюджетирование · юнит-экономика · инвестиционный анализ и оценка · ценообразование</li>
+          <li class="skill-line"><strong>Стратегия и управление:</strong> стратегия и трансформация · анализ рынка · PMO и портфельное управление (350+ проектов) · кросс-функциональное лидерство · KPI и P&amp;L</li>
+          <li class="skill-line"><strong>Банкинг:</strong> розница · корпоратив · private banking · платежи и трансграничные переводы · клиентские пути и сегментация</li>
+          <li class="skill-line"><strong>AI и инструменты:</strong> Claude API · Claude Code · agentic workflows · n8n · Supabase · SQL (PostgreSQL) · Excel (advanced, VBA) · PowerPoint</li>
+          <li class="skill-line"><strong>Языки:</strong> русский (родной) · английский — B2</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results" class="tile-dark">
+  <div class="wrap">
+    <div class="sec-kicker">Ключевые результаты</div>
+    <h2>Изменения и эффект</h2>
+    <p class="sec-intro draft">Четыре истории из разных ролей: корпоративная стратегия, запуск направления с нуля, портфельное управление и собственный бизнес.</p>
+
+    <div class="case-grid">
+      <div class="case draft">
+        <div class="tag">Банк Открытие · Стратегия</div>
+        <div class="metric">Сделка M&amp;A</div>
+        <h3>Стратегия розницы и продажа банка</h3>
+        <dl>
+          <dt>Задача</dt><dd>Разработать и операционализировать стратегию розничного бизнеса банка.</dd>
+          <dt>Вклад</dt><dd>Бизнес-модель, зоны роста, инициативы доходности, сегментная стратегия привлечения.</dd>
+          <dt>Результат</dt><dd>Участие в подготовке и реализации сделки по продаже банка стратегическому инвестору.</dd>
+        </dl>
+      </div>
+      <div class="case draft">
+        <div class="tag">Family Office · Турция</div>
+        <div class="metric">$6B за 12 месяцев</div>
+        <h3>Запуск корпоративного направления банка</h3>
+        <dl>
+          <dt>Задача</dt><dd>Запустить обслуживание нового клиентского сегмента: международные компании и UHNWI.</dd>
+          <dt>Вклад</dt><dd>Операционная и коммерческая модель направления: продажи, сервис, регламенты, KPI.</dd>
+          <dt>Результат</dt><dd>$6B годового оборота направления за первые 12 месяцев работы.</dd>
+        </dl>
+      </div>
+      <div class="case draft">
+        <div class="tag">Альфа-Банк · PMO и продуктовый портфель</div>
+        <div class="metric">350+ проектов</div>
+        <h3>PMO розничного бизнеса</h3>
+        <dl>
+          <dt>Задача</dt><dd>Выстроить управление портфелем проектов розницы и координацию продуктовых команд.</dd>
+          <dt>Вклад</dt><dd>PMO с нуля: сроки, риски, executive-отчётность; координация 7 клиентских путей.</dd>
+          <dt>Результат</dt><dd>Управляемый портфель 350+ проектов, кросс-продуктовые стратегии, антикризисные меры 2020 года.</dd>
+        </dl>
+      </div>
+      <div class="case draft">
+        <div class="tag">ClipPoints · Собственный бизнес</div>
+        <div class="metric">Маржа 40%+</div>
+        <h3>Прибыльный бизнес на AI-конвейере</h3>
+        <dl>
+          <dt>Задача</dt><dd>Построить сеть фото/видео-точек, работающую без ежедневного участия основателя.</dd>
+          <dt>Вклад</dt><dd>Стратегия, юнит-экономика, стандарты качества и полная автоматизация операций на AI.</dd>
+          <dt>Результат</dt><dd>Маржа 40%+, окупаемость точки около 2 месяцев, сквозная конверсия 30%.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROJECTS -->
+<section id="projects" class="tile-parchment">
+  <div class="wrap">
+    <div class="sec-kicker">Дополнительные проекты</div>
+    <h2>За пределами основных ролей</h2>
+    <div class="proj-grid">
+      <div class="pos">
+        <div class="num">01</div>
+        <h3>Торговая компания</h3>
+        <p>Запуск с нуля до операционной готовности за 3 месяца: международные платежи и торговля.</p>
+      </div>
+      <div class="pos">
+        <div class="num">02</div>
+        <h3>Nuanu · девелопмент, 9 застройщиков</h3>
+        <p>Единая финансовая модель 9 застройщиков и 15 жилых комплексов + веб-портал для отдела продаж с автоматическим формированием офферов.</p>
+      </div>
+      <div class="pos">
+        <div class="num">03</div>
+        <h3>AI-приложения</h3>
+        <p>Собственные разработки на Claude + n8n: от внутренних инструментов до точечных продуктов под узкие сегменты.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="name">Данила Кружков</div>
+      <div class="sub">Стратегия · Операционное управление · Финансы · AI автоматизация</div>
+      <div class="fine">© 2026 · danilakruzhkov.com</div>
+    </div>
+    <div class="links">
+      <a href="mailto:danilakruzhkov@gmail.com">Email</a>
+      <a href="https://t.me/DanilaKrv">Telegram</a>
+      <a href="https://linkedin.com/in/danila-kruzhkov">LinkedIn</a>
+      <a href="https://hh.ru/resume/2a8f6f90ff072989c00039ed1f685934376c79">HH.ru</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // стаж от старта карьеры в McKinsey (март 2013), пересчитывается сам
+  (function () {
+    var start = new Date(2013, 2, 1);
+    var years = Math.floor((Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
+    document.querySelectorAll('.js-years').forEach(function (el) { el.textContent = years + '+'; });
+  })();
+</script>
+
+</body>
+</html>
