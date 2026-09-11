@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Danila Kruzhkov — strategy, operations, finance, AI</title>
+<meta name="description" content="Executive: strategist, project and operations leader. McKinsey, Alfa-Bank, Bank Otkritie, Family Office UHNWI, AI Founder, MSU Mechanics &amp; Mathematics.">
+<link rel="canonical" href="https://www.danilakruzhkov.com/en/">
+<link rel="alternate" hreflang="ru" href="https://www.danilakruzhkov.com/">
+<link rel="alternate" hreflang="en" href="https://www.danilakruzhkov.com/en/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #0066cc;
+    --blue-focus: #0071e3;
+    --blue-on-dark: #2997ff;
+    --ink: #1d1d1f;
+    --muted: #7a7a7a;
+    --muted-80: #333333;
+    --canvas: #ffffff;
+    --parchment: #f5f5f7;
+    --tile-dark: #272729;
+    --tile-dark-2: #2a2a2c;
+    --on-dark: #ffffff;
+    --on-dark-muted: #cccccc;
+    --hairline: #e0e0e0;
+    --hairline-dark: rgba(255,255,255,.14);
+    --draft: #c0392b;
+    --draft-on-dark: #ff8a75;
+    --r-sm: 8px;
+    --r-lg: 18px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.47;
+    letter-spacing: -0.2px;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+  .nb { white-space: nowrap; }
+
+  h1, h2, h3 {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.32px;
+  }
+
+  /* черновые куски: снять класс draft, когда текст утверждён.
+     Перед публикацией закомментировать эти три правила: */
+  /* .draft { color: var(--draft) !important; }
+  .draft * { color: var(--draft) !important; }
+  .tile-dark .draft, .tile-dark .draft * { color: var(--draft-on-dark) !important; } */
+
+
+  /* global nav — чёрная полоса 44px */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(0,0,0,.92); backdrop-filter: saturate(180%) blur(20px);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 44px; }
+  .nav .logo { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: -0.12px; }
+  .nav ul { display: flex; gap: 28px; list-style: none; }
+  .nav ul a { color: rgba(255,255,255,.82); font-size: 12px; font-weight: 400; letter-spacing: -0.12px; }
+  .nav ul a:hover { color: #fff; text-decoration: none; }
+  .nav .cta { display: flex; gap: 12px; align-items: center; }
+  .nav .cta a { font-size: 12px; color: rgba(255,255,255,.82); letter-spacing: -0.12px; }
+  .nav .cta a.pill {
+    background: var(--blue); color: #fff; border-radius: 9999px; padding: 5px 13px; font-weight: 400;
+  }
+  .nav .cta a.pill:hover { background: var(--blue-focus); text-decoration: none; }
+  .nav .cta a.lang { border: 1px solid rgba(255,255,255,.35); border-radius: 9999px; padding: 4px 9px; }
+  .nav .cta a.lang:hover { border-color: #fff; text-decoration: none; }
+
+  /* hero — белый тайл */
+  .hero { padding: 20px 0 24px; background: var(--canvas); }
+  section, .hero { scroll-margin-top: var(--nav-h, 44px); }
+  .hero-grid {
+    display: grid; grid-template-columns: 1fr 240px; gap: 0 48px; align-items: center;
+    grid-template-areas: "kicker photo" "main photo" "bottom photo";
+  }
+  .hero-grid .kicker { grid-area: kicker; align-self: end; }
+  .hero-main { grid-area: main; }
+  .hero-bottom { grid-area: bottom; align-self: start; }
+  .kicker {
+    display: inline-block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin-bottom: 8px;
+  }
+  .hero h1 { font-size: 62px; line-height: 1.07; letter-spacing: -0.9px; margin-bottom: 10px; }
+  .hero .subtitle { font-size: 22px; font-weight: 600; letter-spacing: -0.45px; color: var(--ink); margin-bottom: 12px; }
+  .hero .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--hairline); border-radius: 9999px; color: var(--muted-80);
+    padding: 5px 14px; font-size: 13px; font-weight: 600; margin: 2px 0 4px; letter-spacing: -0.12px;
+  }
+  .hero .badge::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: #34c759;
+  }
+  .hero p.lead { font-size: 21px; color: var(--muted-80); margin-bottom: 18px; font-weight: 300; letter-spacing: 0; }
+  .contacts { display: flex; flex-wrap: wrap; gap: 8px 0; font-size: 16px; font-weight: 400; align-items: center; }
+  .contacts a { padding: 0 20px; border-left: 1px solid var(--hairline); line-height: 1.2; }
+  .contacts a:first-child { padding-left: 0; border-left: none; }
+  .photo {
+    aspect-ratio: 4/5; border-radius: var(--r-lg); overflow: hidden; background: var(--parchment);
+    max-width: 240px; justify-self: end; width: 100%;
+    grid-area: photo; align-self: center;
+  }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* stats — пергаментная полоса */
+  .stats-band { background: var(--parchment); padding: 16px 0; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat {
+    background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    padding: 18px 20px;
+  }
+  .stat .label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .stat .value { font-size: 30px; font-weight: 600; letter-spacing: -0.45px; margin-bottom: 4px; }
+  .stat .note { font-size: 13.5px; color: var(--muted-80); line-height: 1.35; letter-spacing: -0.12px; }
+
+  /* sections */
+  section { padding: 12px 0; }
+  .stats-band + section { padding-top: 16px; }
+  .tile-dark, .tile-parchment { padding: 24px 0; }
+  .sec-kicker { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  h2 { font-size: 32px; letter-spacing: -0.45px; line-height: 1.12; margin-bottom: 10px; }
+  .sec-intro { color: var(--muted-80); margin-bottom: 16px; font-size: 15px; }
+  /* заголовок секции слева + пояснение справа (как в резюме-образце) */
+  .sec-head { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px 48px; align-items: end; margin-bottom: 16px; }
+  .sec-head h2 { margin-bottom: 0; }
+  .sec-head .sec-intro { margin-bottom: 4px; }
+  @media (max-width: 860px) {
+    .sec-head { grid-template-columns: 1fr; align-items: start; }
+    .sec-head .sec-intro { margin-bottom: 0; }
+  }
+
+  /* positioning — белый тайл */
+  .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .pos {
+    background: var(--parchment); border-radius: var(--r-lg); padding: 16px 18px;
+  }
+  .pos .num { display: inline; font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 10px; }
+  .pos h3 { display: inline; font-size: 16px; letter-spacing: -0.25px; }
+  .pos p { font-size: 13.5px; color: var(--muted-80); letter-spacing: -0.12px; margin-top: 8px; }
+  .pos-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .pos .when { flex-shrink: 0; white-space: nowrap; font-size: 12.5px; letter-spacing: -0.12px; color: var(--muted); font-weight: 600; }
+  .pos a.src { color: var(--blue); white-space: nowrap; font-size: 12.5px; }
+  /* results — тёмный тайл */
+  .tile-dark { background: var(--tile-dark); color: var(--on-dark); }
+  .tile-dark .sec-kicker { color: var(--on-dark-muted); }
+  .tile-dark h2 { color: var(--on-dark); }
+  .tile-dark .sec-intro { color: var(--on-dark-muted); }
+  .tile-dark a { color: var(--blue-on-dark); }
+  .case-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .case {
+    background: var(--parchment); border-radius: var(--r-lg);
+    padding: 16px 18px;
+  }
+  .case .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .case .metric { font-size: 22px; font-weight: 600; letter-spacing: -0.37px; color: var(--ink); margin: 4px 0 2px; }
+  .case h3 { font-size: 15px; letter-spacing: -0.25px; color: var(--ink); margin-bottom: 12px; }
+  .case dl { font-size: 13px; display: grid; gap: 8px; }
+  .case dt { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 1px; }
+  .case dd { color: var(--muted-80); letter-spacing: -0.12px; }
+  .case a.src { color: var(--blue); white-space: nowrap; font-size: 12.5px; }
+
+  /* experience — белый тайл */
+  .cv-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 22px; margin-bottom: 12px; }
+  .cv-head h2 { margin-bottom: 0; }
+  .cv-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-block; padding: 7px 16px; border-radius: 9999px; font-size: 13px; font-weight: 400;
+    border: 1px solid var(--blue); color: var(--blue); letter-spacing: -0.12px;
+  }
+  .btn:hover { text-decoration: none; }
+  .btn:active { transform: scale(0.95); }
+  .btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn.primary:hover { background: var(--blue-focus); }
+  .job { display: grid; grid-template-columns: 200px 1fr; gap: 22px; padding: 16px 0; border-top: 1px solid var(--hairline); }
+  .job .when { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; letter-spacing: -0.12px; color: var(--muted); font-weight: 600; padding-top: 3px; }
+  .job .when .note { font-weight: 400; }
+  .job .where { font-size: 12.5px; color: var(--muted); letter-spacing: -0.12px; font-weight: 400; }
+  .job h3 { font-size: 17px; letter-spacing: -0.25px; }
+  .job .role { font-size: 14px; color: var(--muted-80); font-weight: 600; margin-bottom: 8px; letter-spacing: -0.12px; }
+  .job ul { list-style: none; display: grid; gap: 6px; font-size: 13.5px; color: var(--muted-80); }
+  .job ul li { padding-left: 16px; position: relative; letter-spacing: -0.12px; }
+  .job ul li::before { content: ""; position: absolute; left: 0; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--hairline); }
+  .job strong { color: var(--ink); font-weight: 600; }
+
+  /* карточка образования выдвинута влево на свой внутренний отступ, чтобы текст стоял в линию с датами .job */
+  .edu-skills { display: grid; grid-template-columns: 222px 1fr; gap: 22px; margin-top: 8px; margin-left: -22px; }
+  .panel { background: var(--parchment); border-radius: var(--r-lg); padding: 20px 22px; }
+  .panel h3 { font-size: 14px; letter-spacing: -0.22px; margin-bottom: 10px; }
+  .panel .meta { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .panel .meta .where { font-weight: 400; }
+  .panel p, .panel li { font-size: 13px; color: var(--muted-80); letter-spacing: -0.12px; }
+  .panel ul { list-style: none; display: grid; gap: 7px; }
+  .panel .skill-line strong { color: var(--ink); font-weight: 600; }
+
+  /* projects — пергаментный тайл */
+  .tile-parchment { background: var(--parchment); }
+  .proj-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .tile-parchment .pos { background: var(--canvas); border: 1px solid var(--hairline); }
+
+  /* footer — пергамент */
+  footer { background: var(--parchment); border-top: 1px solid var(--hairline); color: var(--muted-80); padding: 24px 0; }
+  footer .wrap { display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: center; }
+  footer .name { font-size: 16px; font-weight: 600; letter-spacing: -0.25px; color: var(--ink); margin-bottom: 4px; }
+  footer .sub { font-size: 13px; letter-spacing: -0.12px; }
+  footer .links { display: flex; gap: 18px; font-size: 13.5px; }
+  footer .fine { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  @media (max-width: 860px) {
+    .case-grid, .edu-skills { grid-template-columns: 1fr; }
+    .edu-skills { margin-left: 0; }
+    .panel .meta { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .hero-grid {
+      grid-template-columns: 1fr 170px; gap: 8px 20px; align-items: start;
+      grid-template-areas: "kicker kicker" "main photo" "bottom bottom";
+    }
+    .photo { max-width: 170px; justify-self: end; align-self: start; }
+    .hero-bottom { margin-top: 4px; }
+    .pos-grid, .proj-grid, .stats { grid-template-columns: 1fr 1fr; }
+    .hero h1 { font-size: 34px; }
+    .hero .subtitle { font-size: 19px; }
+    .hero p.lead { font-size: 16px; }
+    .contacts { flex-wrap: wrap; gap: 6px 12px; }
+    .contacts a { border-left: none; padding: 0; }
+    .contacts a:not(:last-child)::after { content: "|"; color: #c5c5c7; margin-left: 12px; font-weight: 300; }
+    .job { grid-template-columns: 1fr; gap: 6px; }
+    .job .when { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .nav { flex-wrap: wrap; height: auto; padding-top: 6px; row-gap: 0; }
+    .nav ul { order: 3; width: 100%; gap: 18px; overflow-x: auto; padding-bottom: 7px; scrollbar-width: none; }
+    .nav ul::-webkit-scrollbar { display: none; }
+    .nav ul a { white-space: nowrap; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 20px; }
+    .pos-grid, .proj-grid { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { padding: 14px 14px; }
+    .stat .value { font-size: 24px; }
+    .hero-grid { grid-template-columns: 1fr 120px; gap: 8px 16px; }
+    .photo { max-width: 120px; margin-top: 0; }
+    .hero h1 { font-size: 30px; }
+    .hero .subtitle { font-size: 16px; }
+    .hero p.lead { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+
+<header>
+  <div class="wrap nav">
+    <div class="logo">Danila Kruzhkov</div>
+    <ul>
+      <li><a href="#top">Profile</a></li>
+      <li><a href="#positioning">Expertise</a></li>
+      <li><a href="#experience">Experience</a></li>
+      <li><a href="#results">Results</a></li>
+      <li><a href="#projects">Projects</a></li>
+    </ul>
+    <div class="cta">
+      <a class="lang" href="/" hreflang="ru" lang="ru">RU</a>
+      <a href="mailto:danilakruzhkov@gmail.com">Email</a>
+      <a class="pill" href="../assets/Danila_Kruzhkov_CV_EN.pdf" download>Resume PDF</a>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-grid">
+      <span class="kicker"><span class="nb">ex McKinsey ·</span> <span class="nb">ex Alfa-Bank ·</span> <span class="nb">ex Bank Otkritie ·</span> <span class="nb">ex Family Office UHNWI ·</span> <span class="nb">AI Founder ·</span> <span class="nb">MSU Mechanics &amp; Mathematics</span></span>
+      <div class="hero-main">
+        <h1>Danila Kruzhkov</h1>
+        <div class="subtitle"><span class="nb">Strategy ·</span> <span class="nb">PMO &amp; Projects ·</span> <span class="nb">Operations ·</span> <span class="nb">Finance ·</span> <span class="nb">AI Automation</span></div>
+        <div class="badge">Open to opportunities</div>
+      </div>
+      <div class="hero-bottom">
+        <p class="lead">Executive: strategist, project and operations leader with <span class="js-years">13+</span> years of experience in consulting, banking and startups.</p>
+        <div class="contacts">
+          <a href="mailto:danilakruzhkov@gmail.com">danilakruzhkov@gmail.com</a>
+          <a href="tel:+79853381407">+7 985 338 14 07</a>
+          <a href="https://t.me/DanilaKrv">@DanilaKrv</a>
+        </div>
+      </div>
+      <div class="photo"><img src="../assets/photo.jpg" alt="Danila Kruzhkov"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-band">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Experience</div>
+        <div class="value"><span class="js-years">13+</span> years</div>
+        <div class="note">management consulting, banks, family office, own business</div>
+      </div>
+      <div class="stat">
+        <div class="label">PMO portfolio</div>
+        <div class="value">350+ projects</div>
+        <div class="note">retail product portfolio at Alfa-Bank: 7 customer journeys, 600 people, $15M budget</div>
+      </div>
+      <div class="stat">
+        <div class="label">Business line launch</div>
+        <div class="value">$6B turnover</div>
+        <div class="note">new banking business line in Turkey within 12 months: international companies and UHNWI</div>
+      </div>
+      <div class="stat">
+        <div class="label">Own business</div>
+        <div class="value">0 → 1 <span class="nb">(→ N)</span></div>
+        <div class="note">from idea to sustainable profit on an AI platform: 2-month unit payback, 40%+ margin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POSITIONING -->
+<section id="positioning">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <div class="sec-kicker">Expertise</div>
+        <h2>From strategy to delivered projects and working processes</h2>
+      </div>
+      <p class="sec-intro">I connect strategy, finance and technology: translating business goals into an operating model, numbers and automated processes with measurable results.</p>
+    </div>
+
+    <div class="pos-grid">
+      <div class="pos">
+        <div class="num">01</div>
+        <h3>Strategy &amp; Finance</h3>
+        <p>Business and business-line strategies, financial and business modelling (three-statement, DCF), P&amp;L management, unit economics, investment analysis, pricing and monetisation.</p>
+      </div>
+      <div class="pos">
+        <div class="num">02</div>
+        <h3>Operations &amp; PMO</h3>
+        <p>Operating models and processes, portfolio and project management, coordination of product and IT teams, KPI systems, business transformation, product launches from hypotheses to service standards.</p>
+      </div>
+      <div class="pos">
+        <div class="num">03</div>
+        <h3>AI products &amp; end-to-end automation</h3>
+        <p>Solution architecture and business-logic design, end-to-end automation of operations with LLMs (Claude, OpenAI) and n8n: chatbots and AI agents, platforms and apps, databases, file processing, automated management reporting.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- EXPERIENCE: строго из cv-1p-ru.md -->
+<section id="experience">
+  <div class="wrap">
+    <div class="cv-head">
+      <div>
+        <div class="sec-kicker">Career path</div>
+        <h2>Experience</h2>
+      </div>
+      <div class="cv-buttons">
+        <a class="btn primary" href="../assets/Danila_Kruzhkov_CV_EN.pdf" download>Download PDF</a>
+        <a class="btn" href="https://linkedin.com/in/danila-kruzhkov">LinkedIn ↗</a>
+        <a class="btn" href="https://hh.ru/resume/2a8f6f90ff072989c00039ed1f685934376c79">HH.ru ↗</a>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when"><span>07/2024 — present <span class="note">(part-time, remote)</span></span><span class="where">Indonesia</span></div>
+      <div>
+        <h3>ClipPoints</h3>
+        <div class="role">Founder &amp; CEO</div>
+        <ul>
+          <li><strong>Launched from zero to profitability</strong> a network of street media studios and a platform for third-party operators: instant shooting, automated editing, digital sales and content delivery to customers; <strong>40%+ margin</strong>, <strong>2-month</strong> unit payback</li>
+          <li>Product, unit economics and sales model from hypothesis to service standards, playbooks and team training: <strong>the business runs autonomously</strong></li>
+          <li><strong>End-to-end AI automation of operations</strong>: sales and content-delivery platform, media pipeline, chatbots, database and management reporting</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when"><span>01/2023 — 06/2024</span><span class="where">UAE / Turkey</span></div>
+      <div>
+        <h3>Family Office (UHNWI)</h3>
+        <div class="role">Strategy &amp; Projects Lead</div>
+        <ul>
+          <li>Launched corporate banking services for a new client segment at a Turkish bank (international companies and UHNWI): <strong>$6B annual turnover of the business line within 12 months</strong></li>
+          <li><strong>Redesigned processes and the service model</strong> for the new segment: team of relationship managers and lawyers, onboarding, cross-border payments and compliance, procedures and KPIs, monetisation and billing</li>
+          <li>Strategy, financial modelling, investment analysis and delivery management for the family’s other projects and holding structures</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when"><span>12/2020 — 12/2022</span><span class="where">Moscow, Russia</span></div>
+      <div>
+        <h3>Bank Otkritie</h3>
+        <div class="role">Managing Director, Retail Strategy</div>
+        <ul>
+          <li><strong>Developed and operationalised the retail strategy</strong>: business model, market and competitor analysis, growth areas across key products</li>
+          <li><strong>Profitability initiatives</strong>: pricing optimisation, sales-funnel improvements, higher cross-sales; segment-based customer acquisition strategy</li>
+          <li><strong>Contributed to preparing and executing the sale of the bank to a strategic investor</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when"><span>09/2019 — 12/2020</span><span class="where">Moscow, Russia</span></div>
+      <div>
+        <h3>Alfa-Bank</h3>
+        <div class="role">Head of Planning &amp; Strategy, Retail Customer Journeys</div>
+        <ul>
+          <li>Built a <strong>PMO for a portfolio of 350+ projects</strong>, <strong>600+ people, $15M budget</strong>: timelines, budgets, impact, risks, executive reporting</li>
+          <li>Coordinated <strong>7 retail customer journeys</strong>: initiative prioritisation, resource allocation, <strong>KPI system</strong>, cross-functional alignment</li>
+          <li>Led <strong>cross-functional projects</strong>: profitability growth, pricing-strategy optimisation, <strong>anti-crisis measures during the pandemic</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when"><span>10/2015 — 09/2019</span><span class="where">Moscow, Russia / Eastern Europe</span></div>
+      <div>
+        <h3>McKinsey &amp; Company</h3>
+        <div class="role">Consultant (Analytics Specialist)</div>
+        <ul>
+          <li><strong>10+ consulting engagements</strong> in banking, metals and machinery: strategy, operational efficiency, transformation: from analytics to initiative implementation and PMO management</li>
+          <li><strong>30+ project proposals</strong>: engagement objectives and structure, commercial terms; helped launch 3+ new engagements</li>
+          <li><strong>Financial and business modelling</strong>: three-statement, DCF, sensitivity analysis, product economics and initiative impact</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="job">
+      <div class="when"><span>03/2013 — 09/2015</span><span class="where">Moscow, Russia</span></div>
+      <div>
+        <h3>McKinsey &amp; Company</h3>
+        <div class="role">Part-time Staff Coordinator</div>
+        <ul>
+          <li>Built and developed the part-time staff department (30+ people): processes, recruiting, task allocation, quality control</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="edu-skills">
+      <div class="panel">
+        <h3>Education</h3>
+        <div class="meta"><span>2009 — 2014</span><span class="where">Moscow, Russia</span></div>
+        <p><strong>Lomonosov Moscow State University</strong><br>Faculty of Mechanics and Mathematics, Department of Probability Theory<br>Specialist degree, qualification “Mathematician”</p>
+      </div>
+      <div class="panel">
+        <h3>Skills</h3>
+        <ul>
+          <li class="skill-line"><strong>Finance:</strong> financial and business modelling (three-statement, DCF) · budgeting and plan-vs-actual · P&amp;L management · unit economics · investment analysis · pricing</li>
+          <li class="skill-line"><strong>Strategy &amp; management:</strong> strategy and transformation · PMO, project and product management · KPI systems · Agile (Scrum, Kanban)</li>
+          <li class="skill-line"><strong>Product &amp; sales:</strong> launching products from scratch · sales models and funnels · A/B testing · service standardisation</li>
+          <li class="skill-line"><strong>Banking:</strong> retail · corporate banking · private banking · cross-border payments and compliance</li>
+          <li class="skill-line"><strong>AI &amp; automation:</strong> end-to-end process automation · chatbots and AI agents · platforms and portals · databases · management reporting</li>
+          <li class="skill-line"><strong>Tools:</strong> LLM APIs (Claude, OpenAI) · AI-assisted development (Claude Code, Codex) · n8n · Supabase · SQL · Excel (advanced, VBA) · PowerPoint · Jira · Confluence</li>
+          <li class="skill-line"><strong>Languages:</strong> Russian (native) · English (B2)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results">
+  <div class="wrap">
+    <div class="sec-kicker">Case studies</div>
+    <h2 style="margin-bottom:16px">Key results</h2>
+
+    <div class="case-grid">
+      <div class="case">
+        <div class="tag">Bank Otkritie · Strategy</div>
+        <div class="metric">M&amp;A deal</div>
+        <h3>Retail strategy and the sale of the bank</h3>
+        <dl>
+          <dt>Challenge</dt><dd>Prepare the bank’s retail business for sale to a strategic investor: strategy, business model, growth areas.</dd>
+          <dt>Contribution</dt><dd>Developed and operationalised the retail strategy; profitability initiatives: pricing, sales funnels, cross-sales, segment-based acquisition strategy.</dd>
+          <dt>Result</dt><dd>The bank was sold to VTB for RUB 340 bn, one of the largest deals in the history of the Russian banking market, December 2022. <a class="src" href="https://www.forbes.ru/finansy/482901-centrobank-prodast-bank-otkrytie-vtb-za-340-mlrd-rublej" target="_blank" rel="noopener">Forbes ↗</a></dd>
+        </dl>
+      </div>
+      <div class="case">
+        <div class="tag">Family Office · Turkey</div>
+        <div class="metric">$6B in 12 months</div>
+        <h3>Launch of a corporate banking business line</h3>
+        <dl>
+          <dt>Challenge</dt><dd>Launch services for a new client segment: international companies and UHNWI.</dd>
+          <dt>Contribution</dt><dd>Redesigned processes and the service model: team of relationship managers and lawyers, onboarding, cross-border payments and compliance, procedures and KPIs, monetisation and billing.</dd>
+          <dt>Result</dt><dd>$6B annual turnover of the business line within the first 12 months.</dd>
+        </dl>
+      </div>
+      <div class="case">
+        <div class="tag">Alfa-Bank · PMO and product portfolio</div>
+        <div class="metric">350+ projects</div>
+        <h3>Retail business PMO</h3>
+        <dl>
+          <dt>Challenge</dt><dd>Build portfolio management for retail projects: 7 customer journeys, 600+ people, $15M budget.</dd>
+          <dt>Contribution</dt><dd>PMO from scratch: timelines, budgets, impact, risks, executive reporting; initiative prioritisation, resource allocation, KPI system.</dd>
+          <dt>Result</dt><dd>A managed portfolio of 350+ projects; cross-functional projects on profitability, pricing strategy and anti-crisis measures during the pandemic.</dd>
+        </dl>
+      </div>
+      <div class="case">
+        <div class="tag">ClipPoints · Own business</div>
+        <div class="metric">40%+ margin</div>
+        <h3>A profitable business on AI operations</h3>
+        <dl>
+          <dt>Challenge</dt><dd>Build from scratch a network of street media studios and a platform for third-party operators that runs autonomously.</dd>
+          <dt>Contribution</dt><dd>Product, unit economics and sales model from hypothesis to standards; end-to-end AI automation of operations.</dd>
+          <dt>Result</dt><dd>40%+ margin, 2-month unit payback, the business runs autonomously. <a class="src" href="https://clippoints.com/" target="_blank" rel="noopener">clippoints.com ↗</a></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROJECTS -->
+<section id="projects" class="tile-parchment">
+  <div class="wrap">
+    <div class="sec-kicker">Additional projects</div>
+    <h2>Beyond the core roles</h2>
+    <div class="proj-grid">
+      <div class="pos">
+        <div class="pos-head"><div><div class="num">01</div><h3>Trading company set-up</h3></div><span class="when">Laos, 2025</span></div>
+        <p>Launched from zero to operational readiness in 3 months: choice of legal form, registration, operational set-up, partnership agreements and financial operations.</p>
+      </div>
+      <div class="pos">
+        <div class="pos-head"><div><div class="num">02</div><h3>Sales portal for Nuanu Real Estate</h3></div><span class="when">Indonesia, 2026</span></div>
+        <p>Built a unified financial and investment model for 9 developers and 15 residential complexes; created a sales-team web portal with automated calculation and generation of client offers. Delivered in 1 month. <a class="src" href="https://nuanu-calculator-chi.vercel.app" target="_blank" rel="noopener">Open portal ↗</a></p>
+      </div>
+      <div class="pos">
+        <div class="pos-head"><div><div class="num">03</div><h3>AI applications</h3></div><span class="when">2024 — 2026</span></div>
+        <p>Own LLM-based products: subscription learning apps, WhatsApp bots for support and sales, a photo-generation media pipeline, Telegram AI assistants.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="name">Danila Kruzhkov</div>
+      <div class="sub">Strategy · PMO &amp; Projects · Operations · Finance · AI Automation</div>
+      <div class="fine">© 2026 · danilakruzhkov.com</div>
+    </div>
+    <div class="links">
+      <a href="mailto:danilakruzhkov@gmail.com">Email</a>
+      <a href="https://t.me/DanilaKrv">Telegram</a>
+      <a href="https://linkedin.com/in/danila-kruzhkov">LinkedIn</a>
+      <a href="https://hh.ru/resume/2a8f6f90ff072989c00039ed1f685934376c79">HH.ru</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // стаж от старта карьеры в McKinsey (март 2013), пересчитывается сам
+  (function () {
+    var start = new Date(2013, 2, 1);
+    var years = Math.floor((Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
+    document.querySelectorAll('.js-years').forEach(function (el) { el.textContent = years + '+'; });
+  })();
+  // высота липкой шапки → отступ якорей (на телефоне меню в две строки)
+  (function () {
+    var h = document.querySelector('header');
+    function set() { document.documentElement.style.setProperty('--nav-h', (h.offsetHeight + 8) + 'px'); }
+    set(); window.addEventListener('resize', set);
+  })();
+</script>
+
+</body>
+</html>
