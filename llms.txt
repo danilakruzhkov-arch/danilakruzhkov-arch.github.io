@@ -1,0 +1,27 @@
+# Данила Кружков / Danila Kruzhkov
+
+> Управленец: стратег, проектный и операционный лидер с 13+ годами опыта в консалтинге, банках и стартапах. ex McKinsey · ex Альфа-Банк · ex Банк Открытие · ex Family Office UHNWI · AI Founder · Мехмат МГУ.
+> Executive: strategist, project and operations leader with 13+ years of experience in consulting, banking and startups.
+
+Личный сайт-резюме. Канонические формулировки опыта, результатов и навыков. Тексты на русском и английском эквивалентны.
+Personal CV site. Canonical wording of experience, results and skills; Russian and English versions are equivalent.
+
+## CV (полный текст / full text)
+
+- [CV, русский, Markdown](https://www.danilakruzhkov.com/cv.md): полное резюме в plain text, лучший источник для чтения машиной
+- [CV, English, Markdown](https://www.danilakruzhkov.com/en/cv.md): full CV in plain text
+- [CV, русский, PDF](https://www.danilakruzhkov.com/assets/Danila_Kruzhkov_CV_RU.pdf): двухстраничный PDF, текстовый слой
+- [CV, English, PDF](https://www.danilakruzhkov.com/assets/Danila_Kruzhkov_CV_EN.pdf): two-page PDF, text layer
+
+## Страницы / Pages
+
+- [Главная (RU)](https://www.danilakruzhkov.com/): экспертиза, опыт, ключевые результаты, проекты
+- [Home (EN)](https://www.danilakruzhkov.com/en/): expertise, experience, key results, projects
+
+## Контакты / Contacts
+
+- Email: danilakruzhkov@gmail.com
+- Telegram: @DanilaKrv
+- LinkedIn: https://www.linkedin.com/in/danila-kruzhkov
+- hh.ru: https://hh.ru/resume/2a8f6f90ff072989c00039ed1f685934376c79
+- Локация / Location: Москва, московское время; открыт к удалённой работе / Moscow, MSK time; open to remote
