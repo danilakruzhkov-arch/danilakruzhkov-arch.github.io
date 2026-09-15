@@ -9,7 +9,7 @@ ex McKinsey · ex Alfa-Bank · ex Bank Otkritie · ex Family Office UHNWI · AI 
 
 ## Profile
 
-Executive: strategist, project and operations leader with 13+ years of experience in consulting, banking and startups.
+Head of strategy, project management and business development with 13+ years of experience in consulting, banking and startups.
 
 ---
 
