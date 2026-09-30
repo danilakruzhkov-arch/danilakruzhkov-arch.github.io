@@ -319,23 +319,29 @@ function vCal(w){
   w.append(c,el('div',{class:'hint'},'✓ подтвердить · ⏸ пропущен (висит долгом, вычитается из свободных денег) · ✕ отменить в этом месяце · ↺ сбросить. Платежи с прошедшей датой без отметки считаются проведёнными автоматически.'));
 }
 // --- Балансы ---
-let balDate=null;
+let balDate=null; let balShowArchived=false; const isDebtAcc=a=>a.type==='credit'||a.type==='loan';
 function vBal(w){
   const today=todayISO(); balDate=balDate||today;
   const snaps=[...S().snapshots].sort((a,b)=>a.date<b.date?-1:1); const existing=snaps.find(s=>s.date===balDate); const prev=snaps.filter(s=>s.date<balDate).pop();
   const di=el('input',{type:'date',value:balDate,style:'width:auto'}); di.onchange=()=>{ balDate=di.value; render(); };
   w.append(el('div',{class:'card'},el('div',{class:'row between'},el('div',{class:'row'},el('strong',{},'Подбить остатки на'),di),existing?el('span',{class:'chip ok'},'снимок есть, правишь его'):el('span',{class:'chip'},'новый снимок')),
-    el('div',{class:'hint'},'Серым подставлено значение из предыдущего снимка'+(prev?' от '+fmtD(prev.date):'')+'. Пустое поле = счёт не учитывается. Итог пересчитывается по текущим курсам.')));
-  const vals={...(existing?existing.balances:{})}; const accs=S().accounts.filter(a=>!a.archived); const byCur={}; for(const a of accs){ (byCur[a.currency]=byCur[a.currency]||[]).push(a); }
+    el('div',{class:'hint'},'Серым подставлено значение из предыдущего снимка'+(prev?' от '+fmtD(prev.date):'')+'. Пустое поле = счёт в снимок не попадает, перед сохранением спрошу. Долги по кредитам вносятся минусом. Итог по текущим курсам.'),
+    el('label',{class:'row small muted',style:'margin-top:8px'},(()=>{ const i=el('input',{type:'checkbox',style:'width:auto'}); i.checked=balShowArchived; i.onchange=()=>{balShowArchived=i.checked;render();}; return i; })(),' показывать архивные счета')));
+  const vals={...(existing?existing.balances:{})}; const accs=S().accounts.filter(a=>balShowArchived||!a.archived);
+  const groups=[['Деньги',accs.filter(a=>!isDebtAcc(a))],['Кредиты и кредитки',accs.filter(isDebtAcc)]];
   const totalEl=el('div',{class:'grid'}); const recalc=()=>{ let t=0; for(const [aid,v] of Object.entries(vals)){ const a=accById(aid); if(a&&v!=null&&v!=='') t+=toB(+v,a.currency); } totalEl.innerHTML=''; totalEl.append(kpi('Итого',rub(t),disp==='USD'?'= '+nf.format(t)+' ₽':'≈ '+nf.format(t/(rate('USD')||1))+' $',t<0?'neg':''),prev?kpi('Изменение',sign(D(t-snapTotal(prev)))+' '+sym(),'с '+fmtD(prev.date),t-snapTotal(prev)<0?'neg':'pos'):null); };
   const card=el('div',{class:'card'});
-  for(const cur of Object.keys(byCur).sort((a,b)=>a==='RUB'?-1:b==='RUB'?1:a.localeCompare(b))){ card.append(el('h2',{},cur,cur!=='RUB'?el('span',{class:'small muted'},' · курс '+nf2.format(rate(cur))):null));
-    const t=el('table'); for(const a of byCur[cur]){ const i=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline',value:vals[a.id]!=null?vals[a.id]:'',placeholder:prev&&prev.balances[a.id]!=null?nf2.format(prev.balances[a.id]):'0'}); i.oninput=()=>{ vals[a.id]=i.value===''?null:parseFloat(i.value); recalc(); };
-      t.append(el('tr',{},el('td',{},a.name,el('div',{class:'small muted'},ATYPES[a.type]||'',a.bank?' · '+a.bank:'')),el('td',{class:'n'},i))); } card.append(t); }
-  card.append(el('div',{style:'margin-top:12px'},totalEl),el('div',{class:'row',style:'margin-top:10px'},el('button',{class:'pri',onclick:()=>{ const clean={}; for(const [k,v] of Object.entries(vals)) if(v!=null&&v!=='') clean[k]=+v; if(existing){ existing.balances=clean; } else S().snapshots.push({date:balDate,balances:clean,note:''}); touch(); alert('Снимок '+fmtD(balDate)+' сохранён'); render(); }},'Сохранить снимок'),
+  for(const [gname,gaccs] of groups){ if(!gaccs.length) continue; card.append(el('h2',{},gname));
+    const byCur={}; for(const a of gaccs){ (byCur[a.currency]=byCur[a.currency]||[]).push(a); }
+    for(const cur of Object.keys(byCur).sort((a,b)=>a==='RUB'?-1:b==='RUB'?1:a.localeCompare(b))){ card.append(el('div',{class:'small muted',style:'margin-top:8px'},el('strong',{},cur),cur!=='RUB'?' · курс '+nf2.format(rate(cur)):''));
+      const t=el('table'); for(const a of byCur[cur]){ const i=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline','data-acc':a.id,value:vals[a.id]!=null?vals[a.id]:'',placeholder:prev&&prev.balances[a.id]!=null?nf2.format(prev.balances[a.id]):'0'}); i.oninput=()=>{ vals[a.id]=i.value===''?null:parseFloat(i.value); recalc(); };
+        t.append(el('tr',{class:a.archived?'dim':''},el('td',{},a.name,el('div',{class:'small muted'},ATYPES[a.type]||'',a.bank?' · '+a.bank:'',a.archived?' · архив':'')),el('td',{class:'n'},i))); } card.append(t); } }
+  card.append(el('div',{style:'margin-top:12px'},totalEl),el('div',{class:'row',style:'margin-top:10px'},el('button',{class:'pri',onclick:()=>{ const clean={}; for(const [k,v] of Object.entries(vals)) if(v!=null&&v!=='') clean[k]=+v;
+      const missing=accs.filter(a=>!a.archived&&clean[a.id]==null); if(missing.length&&!confirm('Не заполнены: '+missing.map(a=>a.name).join(', ')+'.\n\nСохранить без них? В этом снимке они учтены не будут.')) return;
+      if(existing){ existing.balances=clean; } else S().snapshots.push({date:balDate,balances:clean,note:''}); touch(); alert('Снимок '+fmtD(balDate)+' сохранён'); render(); }},'Сохранить снимок'),
     existing?el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить снимок '+fmtD(balDate)+'?')){ S().snapshots=S().snapshots.filter(s=>s!==existing); touch(); render(); } }},'Удалить'):null,
     el('button',{onclick:()=>{ if(!prev) return; for(const a of accs) if(prev.balances[a.id]!=null) vals[a.id]=prev.balances[a.id]; render_inputs(); }},'Скопировать предыдущий')));
-  const render_inputs=()=>{ card.querySelectorAll('input.inline').forEach((i,idx)=>{ const a=accs[idx]; if(a&&vals[a.id]!=null) i.value=vals[a.id]; }); recalc(); };
+  const render_inputs=()=>{ card.querySelectorAll('input.inline').forEach(i=>{ const id=i.getAttribute('data-acc'); if(vals[id]!=null) i.value=vals[id]; }); recalc(); };
   recalc(); w.append(card);
   // история
   const hist=otherSpend().reverse(); const cv=el('canvas',{id:'hc'});
@@ -346,14 +352,19 @@ function vBal(w){
 }
 // --- Долги ---
 function vDebt(w){
-  const c=compute();
-  w.append(el('div',{class:'row between',style:'margin-bottom:10px'},el('strong',{},'Всего долгов: '+rub(c.debtTotal)),el('button',{class:'pri',onclick:()=>editDebt(null)},'+ Долг')));
+  const c=compute(); const last=c.last;
+  const cred=last?S().accounts.filter(a=>isDebtAcc(a)&&last.balances[a.id]<0).map(a=>({a,v:-last.balances[a.id],rub:toB(-last.balances[a.id],a.currency),pay:S().payments.find(p=>p.active&&p.accountId===a.id)})):[];
+  const credTotal=cred.reduce((s,x)=>s+x.rub,0);
+  w.append(el('div',{class:'row between',style:'margin-bottom:10px'},el('strong',{},'Всего долгов: '+rub(c.debtTotal+credTotal)),el('button',{class:'pri',onclick:()=>editDebt(null)},'+ Долг')));
+  if(cred.length){ const t=el('table'); for(const x of cred) t.append(el('tr',{},el('td',{},x.a.name,el('div',{class:'small muted'},ATYPES[x.a.type],x.pay?' · платёж '+money(x.pay.amount,x.pay.currency)+' '+schedText(x.pay):' · платежа в плане нет')),el('td',{class:'n'},money(x.v,x.a.currency),x.a.currency!=='RUB'?el('div',{class:'small muted'},'≈ '+rub(x.rub)):null)));
+    w.append(el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Кредиты и карты'),el('span',{class:'chip'},rub(credTotal))),t,el('div',{class:'hint'},'Из среза балансов от '+fmtD(last.date)+'. Меняется через подбивку балансов, уже учтено в «Деньги сейчас».'))); }
+  w.append(el('h2',{},'Прочие долги'));
   for(const d of c.debts){ const paid=d.amount-d.remaining; const pct=d.amount?Math.round(paid/d.amount*100):0;
     w.append(el('div',{class:'card click',onclick:()=>editDebt(S().debts.find(x=>x.id===d.id))},el('div',{class:'row between'},el('strong',{},d.name),el('span',{class:'chip'},pct+'% погашено')),
       el('div',{class:'kpi'},el('div',{class:'v'},money(d.remaining,d.currency)),el('div',{class:'s'},d.currency!=='RUB'?'≈ '+rub(d.remRub)+' · ':'','из '+money(d.amount,d.currency)+' на '+fmtD(d.asOf||todayISO()))),
       el('div',{class:'small muted',style:'margin-top:6px'},d.plan&&d.plan.monthly?'план: '+money(d.plan.monthly,d.currency)+' '+(d.plan.day||15)+'-го с '+fmtD(d.plan.start)+' · осталось '+Math.ceil(d.remaining/d.plan.monthly)+' мес':'плана погашения нет',d.note?' · '+d.note:''))); }
   if(!c.debts.length) w.append(el('div',{class:'empty'},'долгов нет'));
-  w.append(el('div',{class:'hint'},'Платежи по плану погашения попадают в календарь и прогноз автоматически. Проведённые уменьшают остаток. Кредитки и кредиты со своим графиком удобнее вести как платежи, а не как долги.'));
+  w.append(el('div',{class:'hint'},'Платежи по плану погашения попадают в календарь и прогноз автоматически. Проведённые уменьшают остаток. Кредитки и кредиты сюда не заводить: их долг берётся из балансов, а график платежей ведётся на вкладке «Платежи» со ссылкой на счёт.'));
 }
 function editDebt(d){
   const isNew=!d; d=d?JSON.parse(JSON.stringify(d)):{id:rid('d_'),name:'',amount:0,currency:'RUB',asOf:todayISO(),rate:0,plan:{monthly:0,day:15,start:todayISO()},note:''}; d.plan=d.plan||{monthly:0,day:15,start:todayISO()};
