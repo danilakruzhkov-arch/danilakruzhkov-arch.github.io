@@ -99,7 +99,8 @@ let disp='RUB'; try{ disp=localStorage.getItem('budget_disp')||'RUB'; }catch(e){
 const D=v=>disp==='USD'?v/(rate('USD')||1):v;
 const rub=v=>disp==='USD'?nf.format(Math.round(D(v)))+' $':nf.format(Math.round(v))+' ₽';
 const sym=()=>disp==='USD'?'$':'₽';
-const money=(v,cur)=>(cur==='RUB'?nf.format(Math.round(v))+' ₽':nf2.format(v)+' '+cur);
+const UNIT={IDR:1000,LAK:1000}; const unit=c=>UNIT[c]||1; const curLabel=c=>c+(UNIT[c]?' тыс.':''); // IDR и LAK хранятся и вводятся в тысячах, как в таблице
+const money=(v,cur)=>(cur==='RUB'?nf.format(Math.round(v))+' ₽':nf2.format(v)+' '+curLabel(cur));
 const sign=v=>(v>0?'+':'')+nf.format(Math.round(v));
 const rid=p=>p+Math.random().toString(36).slice(2,8);
 const uniq=a=>[...new Set(a)];
@@ -142,7 +143,7 @@ async function save(){
 // ---------- engine ----------
 const S=()=>store.state;
 function rate(cur){ return S().settings.rates[cur]||(cur==='USDT'?S().settings.rates.USD:0)||0; }
-const toB=(v,cur)=>v*rate(cur);
+const toB=(v,cur)=>v*unit(cur)*rate(cur);
 const catName=id=>(S().categories.find(c=>c.id===id)||{}).name||'—';
 const accById=id=>S().accounts.find(a=>a.id===id);
 function schedText(p){ const s=p.schedule||{}; if(s.type==='once') return 'разово '+fmtD(s.date); if(s.type==='biweekly') return 'раз в 2 недели с '+fmtD(s.start); return (s.day===31?'последний день':s.day+'-го')+' ежемесячно'+(s.start?' с '+fmtD(s.start):'')+(s.end?' по '+fmtD(s.end):''); }
@@ -248,6 +249,9 @@ function vNow(w){
   if(c.due.length){ const d=el('div',{class:'card'},el('h2',{},'Висит, нужно провести')); c.due.forEach(o=>d.append(occRow(o,render))); w.append(d); }
   const up=el('div',{class:'card'},el('h2',{},'Ближайшие 14 дней'));
   const soon=c.occ.filter(o=>o.date>=c.today&&o.date<=addDays(c.today,14)&&o.status!=='cancelled'); if(!soon.length) up.append(el('div',{class:'empty'},'ничего')); soon.forEach(o=>up.append(occRow(o,render))); w.append(up);
+  if(c.last){ const byCur={}; for(const [aid,v] of Object.entries(c.last.balances||{})){ const a=accById(aid); if(!a||v==null||isDebtAcc(a)) continue; byCur[a.currency]=(byCur[a.currency]||0)+v; }
+    const rows=Object.entries(byCur).filter(([k,v])=>v).map(([k,v])=>({cur:k,v,rub:toB(v,k)})).sort((a,b)=>b.rub-a.rub);
+    w.append(el('div',{class:'card'},el('h2',{},'Деньги по валютам'),el('table',{},el('tbody',{},rows.map(r=>el('tr',{},el('td',{},r.cur,UNIT[r.cur]?el('span',{class:'small muted'},' тыс.'):null),el('td',{class:'n'},nf2.format(r.v)),el('td',{class:'n muted'},'≈ '+rub(r.rub)))),el('tr',{},el('td',{},el('strong',{},'Итого')),el('td'),el('td',{class:'n'},el('strong',{},rub(c.cashAtSnap)))))),el('div',{class:'hint'},'По снимку от '+fmtD(c.last.date)+', без кредитов и кредиток. Курсы из настроек.'))); }
 }
 // --- Платежи ---
 function vPay(w){
@@ -336,11 +340,11 @@ function vBal(w){
     el('label',{class:'row small muted',style:'margin-top:8px'},(()=>{ const i=el('input',{type:'checkbox',style:'width:auto'}); i.checked=balShowArchived; i.onchange=()=>{balShowArchived=i.checked;render();}; return i; })(),' показывать архивные счета')));
   const vals={...(existing?existing.balances:{})}; const accs=S().accounts.filter(a=>balShowArchived||!a.archived);
   const groups=[['Деньги',accs.filter(a=>!isDebtAcc(a))],['Кредиты и кредитки',accs.filter(isDebtAcc)]];
-  const totalEl=el('div',{class:'grid'}); const recalc=()=>{ let t=0,dbt=0; for(const [aid,v] of Object.entries(vals)){ const a=accById(aid); if(!a||v==null||v==='') continue; if(isDebtAcc(a)){ if(+v<0) dbt+=toB(-v,a.currency); } else t+=toB(+v,a.currency); } totalEl.innerHTML=''; totalEl.append(kpi('Деньги',rub(t),disp==='USD'?'= '+nf.format(t)+' ₽':'≈ '+nf.format(t/(rate('USD')||1))+' $',t<0?'neg':''),prev?kpi('Изменение',sign(D(t-snapTotal(prev)))+' '+sym(),'с '+fmtD(prev.date),t-snapTotal(prev)<0?'neg':'pos'):null,kpi('Кредиты и карты',rub(dbt),prev?sign(D(dbt-snapDebt(prev)))+' '+sym()+' с '+fmtD(prev.date):'',dbt>0?'neg':'')); };
+  const totalEl=el('div',{class:'grid'}); const recalc=()=>{ let t=0,dbt=0; for(const [aid,v] of Object.entries(vals)){ const a=accById(aid); if(!a||v==null||v==='') continue; if(isDebtAcc(a)){ if(+v<0) dbt+=toB(-v,a.currency); } else t+=toB(+v,a.currency); } totalEl.innerHTML=''; totalEl.append(...[kpi('Деньги',rub(t),disp==='USD'?'= '+nf.format(t)+' ₽':'≈ '+nf.format(t/(rate('USD')||1))+' $',t<0?'neg':''),prev?kpi('Изменение',sign(D(t-snapTotal(prev)))+' '+sym(),'с '+fmtD(prev.date),t-snapTotal(prev)<0?'neg':'pos'):null,kpi('Кредиты и карты',rub(dbt),prev?sign(D(dbt-snapDebt(prev)))+' '+sym()+' с '+fmtD(prev.date):'',dbt>0?'neg':'')].filter(Boolean)); };
   const card=el('div',{class:'card'});
   for(const [gname,gaccs] of groups){ if(!gaccs.length) continue; card.append(el('h2',{},gname));
     const byCur={}; for(const a of gaccs){ (byCur[a.currency]=byCur[a.currency]||[]).push(a); }
-    for(const cur of Object.keys(byCur).sort((a,b)=>a==='RUB'?-1:b==='RUB'?1:a.localeCompare(b))){ card.append(el('div',{class:'small muted',style:'margin-top:8px'},el('strong',{},cur),cur!=='RUB'?' · курс '+nf2.format(rate(cur)):''));
+    for(const cur of Object.keys(byCur).sort((a,b)=>a==='RUB'?-1:b==='RUB'?1:a.localeCompare(b))){ card.append(el('div',{class:'small muted',style:'margin-top:8px'},el('strong',{},curLabel(cur)),cur!=='RUB'?' · '+nf2.format(rate(cur)*unit(cur))+' ₽ за '+(unit(cur)>1?'1000 '+cur:'1 '+cur):'',UNIT[cur]?' · вводить в тысячах':''));
       const t=el('table'); for(const a of byCur[cur]){ const i=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline','data-acc':a.id,value:vals[a.id]!=null?vals[a.id]:'',placeholder:prev&&prev.balances[a.id]!=null?nf2.format(prev.balances[a.id]):'0'}); i.oninput=()=>{ vals[a.id]=i.value===''?null:parseFloat(i.value); recalc(); };
         t.append(el('tr',{class:a.archived?'dim':''},el('td',{},a.name,el('div',{class:'small muted'},ATYPES[a.type]||'',a.bank?' · '+a.bank:'',a.archived?' · архив':'')),el('td',{class:'n'},i))); } card.append(t); } }
   card.append(el('div',{style:'margin-top:12px'},totalEl),el('div',{class:'row',style:'margin-top:10px'},el('button',{class:'pri',onclick:()=>{ const clean={}; for(const [k,v] of Object.entries(vals)) if(v!=null&&v!=='') clean[k]=+v;
@@ -420,8 +424,16 @@ function editAcc(a){
 }
 // --- Настройки ---
 function vSet(w){
-  const st=S().settings; const t=el('table',{},el('thead',{},el('tr',{},el('th',{},'Валюта'),el('th',{class:'n'},'₽ за единицу'))));
-  const tb=el('tbody'); for(const c of CURS){ if(c==='RUB') continue; const i=el('input',{type:'number',step:'0.0001',class:'inline',value:st.rates[c]||''}); i.oninput=()=>{ st.rates[c]=parseFloat(i.value)||0; touch(); }; tb.append(el('tr',{},el('td',{},c),el('td',{class:'n'},i))); } t.append(tb);
+  const st=S().settings; const usd=()=>st.rates.USD||1;
+  const t=el('table',{},el('thead',{},el('tr',{},el('th',{},'Валюта'),el('th',{class:'n'},'за 1 $'),el('th',{class:'n'},'₽ за 1'))));
+  const tb=el('tbody');
+  for(const c of CURS){ if(c==='RUB') continue; if(c==='USDT') st.rates.USDT=usd(); const perUsd=(c==='USD'||c==='USDT')?1:(st.rates[c]?usd()/st.rates[c]:''); // курс к доллару: сколько единиц валюты за 1 $
+    const iu=el('input',{type:'number',step:'0.0001',class:'inline',value:perUsd===''?'':+(+perUsd).toFixed(4),disabled:c==='USD'||c==='USDT'?'':null});
+    iu.oninput=()=>{ const v=parseFloat(iu.value); st.rates[c]=v?+(usd()/v).toFixed(6):0; ir.value=st.rates[c]||''; touch(); };
+    const ir=el('input',{type:'number',step:'0.0001',class:'inline',value:st.rates[c]||'',disabled:c==='USDT'?'':null});
+    ir.oninput=()=>{ st.rates[c]=parseFloat(ir.value)||0; if(c==='USD'){ st.rates.USDT=st.rates.USD; } iu.value=st.rates[c]?+(usd()/st.rates[c]).toFixed(4):''; touch(); if(c==='USD') render(); };
+    tb.append(el('tr',{},el('td',{},c,c==='USDT'?el('div',{class:'small muted'},'всегда 1:1 к доллару'):null,UNIT[c]?el('div',{class:'small muted'},'курс за 1 '+c+', суммы в тысячах; ЦБ не котирует, вручную'):null),el('td',{class:'n'},iu),el('td',{class:'n'},ir))); }
+  t.append(tb);
   const fm=el('input',{type:'number',class:'inline',value:st.forecastMonths||6}); fm.oninput=()=>{ st.forecastMonths=parseInt(fm.value)||6; touch(); };
   w.append(el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Курсы'),el('button',{onclick:async()=>{ try{ const r=await fetch('https://www.cbr-xml-daily.ru/daily_json.js'); const j=await r.json(); for(const c of CURS){ const v=j.Valute[c]; if(v) st.rates[c]=+(v.Value/v.Nominal).toFixed(6); } st.rates.USDT=st.rates.USD; st.ratesUpdated=j.Date.slice(0,10); touch(); render(); }catch(e){ alert('Не удалось получить курсы ЦБ'); } }},'Обновить с ЦБ')),
     el('div',{class:'small muted'},st.ratesUpdated?'ЦБ на '+fmtD(st.ratesUpdated):'курсы введены вручную'),t,el('label',{class:'f',style:'margin-top:12px'},el('span',{},'Горизонт прогноза, мес'),fm)));
