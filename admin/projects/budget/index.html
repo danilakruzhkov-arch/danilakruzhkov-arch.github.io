@@ -317,17 +317,16 @@ function vBal(w){
   const snaps=[...S().snapshots].sort((a,b)=>a.date<b.date?-1:1); const existing=snaps.find(s=>s.date===balDate); const prev=snaps.filter(s=>s.date<balDate).pop();
   const di=el('input',{type:'date',value:balDate,style:'width:auto'}); di.onchange=()=>{ balDate=di.value; render(); };
   w.append(el('div',{class:'card'},el('div',{class:'row between'},el('div',{class:'row'},el('strong',{},'Подбить остатки на'),di),existing?el('span',{class:'chip ok'},'снимок есть, правишь его'):el('span',{class:'chip'},'новый снимок')),
-    el('div',{class:'hint'},'Серым подставлено значение из предыдущего снимка'+(prev?' от '+fmtD(prev.date):'')+'. Пустое поле = счёт не учитывается. Итог пересчитывается по текущим курсам.')));
+    el('div',{class:'hint'},'Снимок вносится целиком: заполняются все активные счета сразу, пустым ничего не остаётся (пусто на счёте = 0). Серым для справки значение из предыдущего снимка'+(prev?' от '+fmtD(prev.date):'')+'. Итог по текущим курсам.')));
   const vals={...(existing?existing.balances:{})}; const accs=S().accounts.filter(a=>!a.archived); const byCur={}; for(const a of accs){ (byCur[a.currency]=byCur[a.currency]||[]).push(a); }
   const totalEl=el('div',{class:'grid'}); const recalc=()=>{ let t=0; for(const [aid,v] of Object.entries(vals)){ const a=accById(aid); if(a&&v!=null&&v!=='') t+=toB(+v,a.currency); } totalEl.innerHTML=''; totalEl.append(kpi('Итого',rub(t),'≈ '+nf.format(t/(rate('USD')||1))+' $',t<0?'neg':''),prev?kpi('Изменение',sign(t-snapTotal(prev))+' ₽','с '+fmtD(prev.date),t-snapTotal(prev)<0?'neg':'pos'):null); };
   const card=el('div',{class:'card'});
   for(const cur of Object.keys(byCur).sort((a,b)=>a==='RUB'?-1:b==='RUB'?1:a.localeCompare(b))){ card.append(el('h2',{},cur,cur!=='RUB'?el('span',{class:'small muted'},' · курс '+nf2.format(rate(cur))):null));
     const t=el('table'); for(const a of byCur[cur]){ const i=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline',value:vals[a.id]!=null?vals[a.id]:'',placeholder:prev&&prev.balances[a.id]!=null?nf2.format(prev.balances[a.id]):'0'}); i.oninput=()=>{ vals[a.id]=i.value===''?null:parseFloat(i.value); recalc(); };
       t.append(el('tr',{},el('td',{},a.name,el('div',{class:'small muted'},ATYPES[a.type]||'',a.bank?' · '+a.bank:'')),el('td',{class:'n'},i))); } card.append(t); }
-  card.append(el('div',{style:'margin-top:12px'},totalEl),el('div',{class:'row',style:'margin-top:10px'},el('button',{class:'pri',onclick:()=>{ const clean={}; for(const [k,v] of Object.entries(vals)) if(v!=null&&v!=='') clean[k]=+v; if(existing){ existing.balances=clean; } else S().snapshots.push({date:balDate,balances:clean,note:''}); touch(); alert('Снимок '+fmtD(balDate)+' сохранён'); render(); }},'Сохранить снимок'),
+  card.append(el('div',{style:'margin-top:12px'},totalEl),el('div',{class:'row',style:'margin-top:10px'},el('button',{class:'pri',onclick:()=>{ const missing=accs.filter(a=>vals[a.id]==null||vals[a.id]===''); if(missing.length){ alert('Снимок только целиком. Не заполнено: '+missing.map(a=>a.name).join(', ')+'. Если счёт пуст, поставь 0; если больше не нужен, заархивируй его во вкладке «Счета».'); return; } const clean={}; for(const [k,v] of Object.entries(vals)) if(v!=null&&v!=='') clean[k]=+v; if(existing){ existing.balances=clean; } else S().snapshots.push({date:balDate,balances:clean,note:''}); touch(); alert('Снимок '+fmtD(balDate)+' сохранён'); render(); }},'Сохранить снимок'),
     existing?el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить снимок '+fmtD(balDate)+'?')){ S().snapshots=S().snapshots.filter(s=>s!==existing); touch(); render(); } }},'Удалить'):null,
-    el('button',{onclick:()=>{ if(!prev) return; for(const a of accs) if(prev.balances[a.id]!=null) vals[a.id]=prev.balances[a.id]; render_inputs(); }},'Скопировать предыдущий')));
-  const render_inputs=()=>{ card.querySelectorAll('input.inline').forEach((i,idx)=>{ const a=accs[idx]; if(a&&vals[a.id]!=null) i.value=vals[a.id]; }); recalc(); };
+    null));
   recalc(); w.append(card);
   // история
   const hist=otherSpend().reverse(); const cv=el('canvas',{id:'hc'});
