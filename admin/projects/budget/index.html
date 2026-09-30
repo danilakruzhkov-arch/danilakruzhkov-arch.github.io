@@ -175,7 +175,8 @@ function occurrences(from,to){
   out.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.kind==='income'?-1:1)); return out;
 }
 const signed=o=>(o.kind==='income'?1:-1)*o.rub;
-function snapTotal(sn){ let t=0; for(const [aid,v] of Object.entries(sn.balances||{})){ const a=accById(aid); if(a&&v!=null) t+=toB(v,a.currency); } return t; }
+function snapTotal(sn){ let t=0; for(const [aid,v] of Object.entries(sn.balances||{})){ const a=accById(aid); if(a&&v!=null&&!isDebtAcc(a)) t+=toB(v,a.currency); } return t; } // деньги без кредитов
+function snapDebt(sn){ let t=0; for(const [aid,v] of Object.entries(sn.balances||{})){ const a=accById(aid); if(a&&v!=null&&isDebtAcc(a)&&v<0) t+=toB(-v,a.currency); } return t; } // долг по кредитам и кредиткам, положительное число
 function compute(){
   const today=todayISO(); const snaps=[...S().snapshots].sort((a,b)=>a.date<b.date?-1:1);
   const last=snaps.filter(s=>s.date<=today).pop()||snaps[snaps.length-1]||null;
@@ -195,8 +196,8 @@ function compute(){
   let run=cashAtSnap; for(const k of Object.keys(mt).sort()){ run+=mt[k].inc-mt[k].exp; mt[k].end=run; }
   const nextInc=future.find(o=>o.kind==='income'); let free=cashNow-arrears; for(const o of future){ if(nextInc&&o.date>=nextInc.date) break; if(o.kind==='expense') free-=o.rub; }
   const debts=S().debts.map(d=>({...d,remaining:debtRemaining(d,today),remRub:toB(debtRemaining(d,today),d.currency)}));
-  const debtTotal=debts.reduce((s,d)=>s+d.remRub,0);
-  return {today,last,cashAtSnap,cashNow,posted,arrears,due,series,min,borrow:Math.max(0,-min.bal),months:mt,nextInc,free,debts,debtTotal,net:cashNow-debtTotal,occ,future};
+  const debtTotal=debts.reduce((s,d)=>s+d.remRub,0); const credDebt=last?snapDebt(last):0;
+  return {today,last,cashAtSnap,cashNow,posted,arrears,due,series,min,borrow:Math.max(0,-min.bal),months:mt,nextInc,free,debts,debtTotal,credDebt,net:cashNow-debtTotal-credDebt,occ,future};
 }
 function otherSpend(){ // между снимками: ожидалось − факт
   const snaps=[...S().snapshots].sort((a,b)=>a.date<b.date?-1:1); const out=[];
@@ -236,7 +237,7 @@ function vNow(w){
     kpi('Висит (пропущено)',rub(c.arrears),c.due.length?c.due.length+' платежа':'ничего не висит',c.arrears>0?'warn':''),
     kpi('Свободно до дохода',rub(c.free),c.nextInc?'следующий '+fmtD(c.nextInc.date)+': '+c.nextInc.name:'доходов в плане нет',c.free<0?'neg':'pos'),
     kpi('Минимум прогноза',rub(c.min.bal),fmtD(c.min.date)+' · горизонт '+(S().settings.forecastMonths||6)+' мес',c.min.bal<0?'neg':'pos'),
-    kpi('Чистая позиция',rub(c.net),'деньги минус долги '+rub(c.debtTotal),c.net<0?'neg':'')));
+    kpi('Чистая позиция',rub(c.net),'долги '+rub(c.debtTotal+c.credDebt)+', из них кредиты и карты '+rub(c.credDebt),c.net<0?'neg':'')));
   const cv=el('canvas',{id:'fc'}); w.append(el('div',{class:'card'},el('h2',{},'Прогноз остатка'),cv));
   setTimeout(()=>{ const labels=c.series.map(s=>s.date); new Chart(cv,{type:'line',data:{labels,datasets:[{data:c.series.map(s=>Math.round(s.bal)),borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),borderWidth:2,pointRadius:0,fill:{target:'origin',above:'rgba(30,142,62,.08)',below:'rgba(217,48,37,.12)'},tension:.05}]},
     options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(labels[i[0].dataIndex]),label:i=>rub(i.raw)}}},scales:{x:{ticks:{maxTicksLimit:7,callback:(v,i)=>fmtD(labels[i])},grid:{display:false}},y:{ticks:{callback:v=>nf.format(D(v)/1000)+'k'}}}}}); },0);
@@ -335,7 +336,7 @@ function vBal(w){
     el('label',{class:'row small muted',style:'margin-top:8px'},(()=>{ const i=el('input',{type:'checkbox',style:'width:auto'}); i.checked=balShowArchived; i.onchange=()=>{balShowArchived=i.checked;render();}; return i; })(),' показывать архивные счета')));
   const vals={...(existing?existing.balances:{})}; const accs=S().accounts.filter(a=>balShowArchived||!a.archived);
   const groups=[['Деньги',accs.filter(a=>!isDebtAcc(a))],['Кредиты и кредитки',accs.filter(isDebtAcc)]];
-  const totalEl=el('div',{class:'grid'}); const recalc=()=>{ let t=0; for(const [aid,v] of Object.entries(vals)){ const a=accById(aid); if(a&&v!=null&&v!=='') t+=toB(+v,a.currency); } totalEl.innerHTML=''; totalEl.append(kpi('Итого',rub(t),disp==='USD'?'= '+nf.format(t)+' ₽':'≈ '+nf.format(t/(rate('USD')||1))+' $',t<0?'neg':''),prev?kpi('Изменение',sign(D(t-snapTotal(prev)))+' '+sym(),'с '+fmtD(prev.date),t-snapTotal(prev)<0?'neg':'pos'):null); };
+  const totalEl=el('div',{class:'grid'}); const recalc=()=>{ let t=0,dbt=0; for(const [aid,v] of Object.entries(vals)){ const a=accById(aid); if(!a||v==null||v==='') continue; if(isDebtAcc(a)){ if(+v<0) dbt+=toB(-v,a.currency); } else t+=toB(+v,a.currency); } totalEl.innerHTML=''; totalEl.append(kpi('Деньги',rub(t),disp==='USD'?'= '+nf.format(t)+' ₽':'≈ '+nf.format(t/(rate('USD')||1))+' $',t<0?'neg':''),prev?kpi('Изменение',sign(D(t-snapTotal(prev)))+' '+sym(),'с '+fmtD(prev.date),t-snapTotal(prev)<0?'neg':'pos'):null,kpi('Кредиты и карты',rub(dbt),prev?sign(D(dbt-snapDebt(prev)))+' '+sym()+' с '+fmtD(prev.date):'',dbt>0?'neg':'')); };
   const card=el('div',{class:'card'});
   for(const [gname,gaccs] of groups){ if(!gaccs.length) continue; card.append(el('h2',{},gname));
     const byCur={}; for(const a of gaccs){ (byCur[a.currency]=byCur[a.currency]||[]).push(a); }
