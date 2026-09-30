@@ -32,6 +32,7 @@
   table { width:100%; border-collapse:collapse; font-size:14px; }
   th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+  th.sortable { cursor:pointer; user-select:none; white-space:nowrap; } th.sortable.on { color:var(--ink); }
   td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   tr.dim td { color:var(--muted); }
   tr.click { cursor:pointer; }
@@ -261,17 +262,22 @@ function vPay(w){
   if(catCounts.none) catRow.append(el('span',{class:'chip'+(payFilter.cat==='none'?' blue':''),style:'cursor:pointer',onclick:()=>{payFilter.cat='none';render();}},'без категории '+catCounts.none));
   w.append(catRow);
   if(payFilter.cat!=='all') list=list.filter(p=>(p.category||'none')===payFilter.cat);
+  const q=(payFilter.q||'').trim().toLowerCase(); if(q) list=list.filter(p=>(p.name+' '+catName(p.category)+' '+(p.note||'')).toLowerCase().includes(q));
   const today=todayISO();
   const nextDate=p=>{ const d=expand(p.schedule,today,addMonths(today,13)); return d[0]||null; };
-  list.sort((a,b)=>(a.kind===b.kind?0:a.kind==='income'?-1:1)||((nextDate(a)||'9')<(nextDate(b)||'9')?-1:1));
-  const t=el('table',{},el('thead',{},el('tr',{},el('th',{},'Платёж'),el('th',{class:'n'},'Сумма'),el('th',{class:'n'},'≈ '+sym()+'/мес'),el('th',{},'Расписание'),el('th',{},'Следующий'),el('th',{},'Статус'))));
+  const keyOf={cat:p=>(p.scope==='clippoint'?'1':'0')+catName(p.category)+'|'+p.name,name:p=>p.name.toLowerCase(),amount:p=>-toB(p.amount,p.currency),month:p=>-monthlyEq(p),sched:p=>(p.schedule.type==='once'?'1'+p.schedule.date:'0'+String(p.schedule.day||0).padStart(2,'0')),next:p=>nextDate(p)||'9',status:p=>(p.active?'0':'1')+(p.review?'1':'0')+(HZ[p.horizon]||'')};
+  const sk=payFilter.sort||'cat', dir=payFilter.dir||1; const kf=keyOf[sk]||keyOf.cat;
+  list.sort((a,b)=>{ const x=kf(a),y=kf(b); return (x<y?-1:x>y?1:0)*dir||(keyOf.cat(a)<keyOf.cat(b)?-1:1); });
+  const th=(k,label,cls)=>el('th',{class:(cls||'')+' sortable'+(sk===k?' on':''),onclick:()=>{ if(payFilter.sort===k) payFilter.dir=-(payFilter.dir||1); else { payFilter.sort=k; payFilter.dir=1; } render(); }},label,sk===k?(dir>0?' ↓':' ↑'):'');
+  const t=el('table',{},el('thead',{},el('tr',{},th('cat','Категория'),th('name','Платёж'),th('amount','Сумма','n'),th('month','≈ '+sym()+'/мес','n'),th('sched','Расписание'),th('next','Следующий'),th('status','Статус'))));
   const tb=el('tbody'); t.append(tb);
   for(const p of list){ const nd=nextDate(p); const me=monthlyEq(p);
-    tb.append(el('tr',{class:'click'+(p.active?'':' dim'),onclick:()=>editPayment(p)},el('td',{},el('div',{},p.name),el('div',{class:'small muted'},catName(p.category),p.scope==='clippoint'?' · ClipPoint':'',p.note?' · '+p.note:'')),
+    tb.append(el('tr',{class:'click'+(p.active?'':' dim'),onclick:()=>editPayment(p)},el('td',{class:'small'},catName(p.category),p.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{},el('div',{},p.name),p.note?el('div',{class:'small muted'},p.note):null),
       el('td',{class:'n '+(p.kind==='income'?'pos':'')},(p.kind==='income'?'+':'−')+money(p.amount,p.currency)),el('td',{class:'n muted'},me?nf.format(D(me)):'разово'),el('td',{class:'small'},schedText(p)),el('td',{class:'small'},nd?fmtD(nd):'—'),
       el('td',{},p.active?el('span',{class:'chip ok'},'активен'):el('span',{class:'chip'},'выкл'),' ',p.review?el('span',{class:'chip amb'},'проверить'):null,' ',el('span',{class:'chip'},HZ[p.horizon]||'')))); }
-  if(!list.length) tb.append(el('tr',{},el('td',{colspan:6,class:'empty'},'пусто')));
-  w.append(el('div',{class:'card'},el('div',{class:'tscroll'},t)));
+  if(!list.length) tb.append(el('tr',{},el('td',{colspan:7,class:'empty'},'пусто')));
+  const qi=el('input',{type:'search',placeholder:'поиск по названию, категории, заметке',value:payFilter.q||'',style:'margin-bottom:10px'}); qi.oninput=()=>{ payFilter.q=qi.value; render(); const n=document.querySelector('#payq'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }; qi.id='payq';
+  w.append(el('div',{class:'card'},qi,el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Клик по заголовку сортирует, второй клик меняет направление. Строк: '+list.length)));
   // сводник по активным
   const act=S().payments.filter(p=>p.active&&(payFilter.scope==='all'||p.scope===payFilter.scope));
   const inc=act.filter(p=>p.kind==='income').reduce((s,p)=>s+monthlyEq(p),0), exp=act.filter(p=>p.kind==='expense').reduce((s,p)=>s+monthlyEq(p),0);
