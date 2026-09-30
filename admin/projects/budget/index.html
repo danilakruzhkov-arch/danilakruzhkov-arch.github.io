@@ -198,7 +198,7 @@ function compute(){
   const mt={}; for(const o of occ){ if(o.status==='cancelled') continue; const k=mkey(o.date); mt[k]=mt[k]||{inc:0,exp:0,end:0}; if(o.kind==='income') mt[k].inc+=o.rub; else mt[k].exp+=o.rub; }
   let run=cashAtSnap; for(const k of Object.keys(mt).sort()){ run+=mt[k].inc-mt[k].exp; mt[k].end=run; }
   const nextInc=future.find(o=>o.kind==='income'); let free=cashNow-arrears; for(const o of future){ if(nextInc&&o.date>=nextInc.date) break; if(o.kind==='expense') free-=o.rub; }
-  const debts=S().debts.map(d=>({...d,remaining:debtRemaining(d,today),remRub:toB(debtRemaining(d,today),d.currency)}));
+  const debts=S().debts.filter(d=>d.dir!=='owed').map(d=>({...d,remaining:debtRemaining(d,today),remRub:toB(debtRemaining(d,today),d.currency)})); // «мне должны» в итоги не входят
   const debtTotal=debts.reduce((s,d)=>s+d.remRub,0); const credDebt=last?snapDebt(last):0;
   return {today,last,cashAtSnap,cashNow,posted,arrears,due,series,min,borrow:Math.max(0,-min.bal),months:mt,nextInc,free,debts,debtTotal,credDebt,net:cashNow-debtTotal-credDebt,occ,future};
 }
@@ -278,7 +278,7 @@ function vPay(w){
   const ms=[0,1,2].map(i=>{ const k=mkey(addMonths(today,i)); return {k,from:k+'-01',to:k+'-'+String(lastDay(+k.slice(0,4),+k.slice(5,7))).padStart(2,'0')}; });
   const cols=ms.map(m=>{ const r={inc:0,exp:0,sav:0};
     for(const o of occurrences(m.from,m.to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.kind==='income') r.inc+=o.rub; else if(o.kind==='saving') r.sav+=o.rub; else r.exp+=o.rub; }
-    r.rest=r.inc-r.exp-r.sav; r.debt=S().debts.reduce((t,d)=>t+toB(debtRemaining(d,m.to),d.currency),0);
+    r.rest=r.inc-r.exp-r.sav; r.debt=S().debts.filter(d=>d.dir!=='owed').reduce((t,d)=>t+toB(debtRemaining(d,m.to),d.currency),0);
     const credPaid=occurrences(c.last?addDays(c.last.date,1):today,m.to).filter(o=>o.status!=='cancelled'&&o.status!=='skipped'&&o.kind==='expense'&&o.scope==='personal'&&isCredCat(o)).reduce((t,o)=>t+o.rub,0);
     r.cred=Math.max(0,c.credDebt-credPaid); return r; });
   const sc={inc:0,exp:0,sav:0,debt:0,cred:0}; for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income') sc.inc+=v; else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else sc.exp+=v; } sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc);
@@ -402,16 +402,18 @@ function vDebt(w){
       el('div',{class:'kpi'},el('div',{class:'v'},money(d.remaining,d.currency)),el('div',{class:'s'},d.currency!=='RUB'?'≈ '+rub(d.remRub)+' · ':'','из '+money(d.amount,d.currency)+' на '+fmtD(d.asOf||todayISO()))),
       el('div',{class:'small muted',style:'margin-top:6px'},(()=>{ const ps=S().payments.filter(x=>x.debtId===d.id); return ps.length?'план: '+ps.map(x=>money(x.amount,x.currency)+' '+(isSomeday(x)?'когда-нибудь':schedText(x))).join('; '):'плана нет: строка в Платежах с полем «Гасит долг»'; })(),d.note?' · '+d.note:''))); }
   if(!c.debts.length) w.append(el('div',{class:'empty'},'долгов нет'));
+  const owed=S().debts.filter(d=>d.dir==='owed'); if(owed.length){ w.append(el('h2',{},'Мне должны'),el('div',{class:'card'},el('table',{},el('tbody',{},owed.map(d=>el('tr',{class:'click',onclick:()=>editDebt(d)},el('td',{},d.name,d.note?el('div',{class:'small muted'},d.note):null),el('td',{class:'n'},money(d.amount,d.currency),el('div',{class:'small muted'},'≈ '+rub(toB(d.amount,d.currency)))))))),el('div',{class:'hint'},'В итоги и чистую позицию не входит. Когда появится дата возврата, заведи строку-доход в Платежах.'))); }
   w.append(el('div',{class:'hint'},'Платежи по плану погашения попадают в календарь и прогноз автоматически. Проведённые уменьшают остаток. Кредитки и кредиты сюда не заводить: их долг берётся из балансов, а график платежей ведётся на вкладке «Платежи» со ссылкой на счёт.'));
 }
 function editDebt(d){
   const isNew=!d; d=d?JSON.parse(JSON.stringify(d)):{id:rid('d_'),name:'',amount:0,currency:'RUB',asOf:todayISO(),rate:0,plan:null,note:''};
   const inp=(label,obj,key,type='text',extra={})=>{ const i=el('input',{type,value:obj[key]==null?'':obj[key],...extra}); i.oninput=()=>{ obj[key]=type==='number'?parseFloat(i.value)||0:i.value; }; return el('label',{class:'f'},el('span',{},label),i); };
   const sel=el('select',{},CURS.map(c=>el('option',{value:c,selected:d.currency===c?'':null},c))); sel.onchange=()=>d.currency=sel.value;
-  const f=el('div',{},inp('Кому / что',d,'name'),el('div',{class:'f2'},inp('Остаток долга',d,'amount','number',{step:'0.01'}),el('label',{class:'f'},el('span',{},'Валюта'),sel)),inp('Остаток на дату',d,'asOf','date'),inp('Заметка',d,'note'),
+  const dir=el('select',{},[['owe','я должен'],['owed','мне должны']].map(([v,n])=>el('option',{value:v,selected:(d.dir||'owe')===v?'':null},n))); dir.onchange=()=>d.dir=dir.value;
+  const f=el('div',{},el('div',{class:'f2'},inp('Кому / что',d,'name'),el('label',{class:'f'},el('span',{},'Кто кому'),dir)),el('div',{class:'f2'},inp('Остаток долга',d,'amount','number',{step:'0.01'}),el('label',{class:'f'},el('span',{},'Валюта'),sel)),inp('Остаток на дату',d,'asOf','date'),inp('Заметка',d,'note'),
     el('div',{class:'hint'},'График погашения ведётся строкой на вкладке «Платежи» (категория Долги, поле «Гасит долг»). Для нового долга строка без даты создастся сама.'));
   modal(isNew?'Новый долг':'Долг',f,[isNew?null:el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить долг? Связанные платежи останутся.')){ S().debts=S().debts.filter(x=>x.id!==d.id); S().payments.forEach(x=>{ if(x.debtId===d.id) x.debtId=null; }); touch(); closeModal(); render(); } }},'Удалить'),
-    el('button',{class:'pri',onclick:()=>{ const i=S().debts.findIndex(x=>x.id===d.id); if(i>=0) S().debts[i]=d; else { S().debts.push(d); const cat=S().categories.find(c=>c.name==='Долги'&&c.scope==='personal'); ensureOrder(); S().payments.push({id:rid('p_'),name:'Долг: '+d.name,kind:'expense',scope:'personal',category:cat?cat.id:null,amount:d.amount,currency:d.currency,schedule:{type:'once',date:null},mandatory:true,active:true,note:'',debtId:d.id,accountId:null,order:Math.max(0,...S().payments.map(x=>x.order||0))+1}); } touch(); closeModal(); render(); }},'Сохранить')]);
+    el('button',{class:'pri',onclick:()=>{ const i=S().debts.findIndex(x=>x.id===d.id); if(i>=0) S().debts[i]=d; else { S().debts.push(d); if(d.dir==='owed'){ touch(); closeModal(); render(); return; } const cat=S().categories.find(c=>c.name==='Долги'&&c.scope==='personal'); ensureOrder(); S().payments.push({id:rid('p_'),name:'Долг: '+d.name,kind:'expense',scope:'personal',category:cat?cat.id:null,amount:d.amount,currency:d.currency,schedule:{type:'once',date:null},mandatory:true,active:true,note:'',debtId:d.id,accountId:null,order:Math.max(0,...S().payments.map(x=>x.order||0))+1}); } touch(); closeModal(); render(); }},'Сохранить')]);
 }
 // --- Цели ---
 function vGoal(w){
