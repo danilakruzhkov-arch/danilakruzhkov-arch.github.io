@@ -20,7 +20,7 @@
   .tabs::-webkit-scrollbar { display:none; }
   .tab { flex:0 0 auto; padding:7px 12px; border-radius:999px; background:transparent; color:var(--muted); border:0; font-size:14px; font-weight:500; }
   .tab.on { background:var(--ink); color:var(--bg); }
-  .wrap { max-width:960px; margin:0 auto; padding:14px 16px 80px; }
+  .wrap { max-width:960px; margin:0 auto; padding:14px 16px 80px; } .wrap.wide { max-width:1500px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin-bottom:12px; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
   .kpi .l { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
@@ -150,12 +150,12 @@ function rate(cur){ return S().settings.rates[cur]||(cur==='USDT'?S().settings.r
 const toB=(v,cur)=>v*unit(cur)*rate(cur);
 const catName=id=>(S().categories.find(c=>c.id===id)||{}).name||'—';
 const accById=id=>S().accounts.find(a=>a.id===id);
-function schedText(p){ const s=p.schedule||{}; if(s.type==='once') return 'разово '+fmtD(s.date); if(s.type==='biweekly') return 'раз в 2 недели с '+fmtD(s.start); return (s.day===31?'последний день':s.day+'-го')+' ежемесячно'+(s.start?' с '+fmtD(s.start):'')+(s.end?' по '+fmtD(s.end):''); }
-function monthlyEq(p){ const s=p.schedule||{}; const v=toB(p.amount,p.currency); if(s.type==='monthly') return v/(s.every||1); if(s.type==='biweekly') return v*26/12; return 0; }
+function schedText(p){ const s=p.schedule||{}; if(s.type==='once') return s.date?'разово '+fmtD(s.date):'когда-нибудь'; if(s.type==='weekly') return s.start?'еженедельно с '+fmtD(s.start)+(s.end?' по '+fmtD(s.end):''):'еженедельно, когда-нибудь'; if(s.type==='biweekly') return 'раз в 2 недели с '+fmtD(s.start); return (s.day===31?'последний день':s.day+'-го')+' ежемесячно'+(s.start?' с '+fmtD(s.start):'')+(s.end?' по '+fmtD(s.end):''); }
+function monthlyEq(p){ const s=p.schedule||{}; const v=toB(p.amount,p.currency); if(s.type==='monthly') return v/(s.every||1); if(s.type==='weekly') return v*52/12; if(s.type==='biweekly') return v*26/12; return 0; }
 function expand(sched,from,to){ // dates in [from,to]
   const out=[]; if(!sched) return out;
   if(sched.type==='once'){ if(sched.date&&sched.date>=from&&sched.date<=to) out.push(sched.date); return out; }
-  if(sched.type==='biweekly'){ let d=sched.start; while(d<=to){ if(d>=from&&(!sched.end||d<=sched.end)) out.push(d); d=addDays(d,14); if(sched.end&&d>sched.end) break; } return out; }
+  if(sched.type==='weekly'||sched.type==='biweekly'){ if(!sched.start) return out; const step=sched.type==='weekly'?7:14; let d=sched.start; while(d<=to){ if(d>=from&&(!sched.end||d<=sched.end)) out.push(d); d=addDays(d,step); if(sched.end&&d>sched.end) break; } return out; }
   // monthly
   if(!sched.start) return out; // регулярный без даты старта = когда-нибудь
   const start=sched.start; let [y,m]=start.split('-').map(Number); const ev=sched.every||1;
@@ -211,13 +211,13 @@ function otherSpend(){ // между снимками: ожидалось − ф
 }
 
 // ---------- UI ----------
-let tab='now'; let calMonth=mkey(todayISO()); let payFilter={scope:'all',bucket:'all',cat:'all',sort:'order',dir:1,q:''}; let charts={};
+let tab='now'; let calMonth=mkey(todayISO()); let payFilter={scope:'all',bucket:'all',cat:'all',sort:'default',dir:1,q:''}; let charts={};
 function render(){
   const app=$('#app'); app.innerHTML='';
   const tabs=[['now','Сейчас'],['pay','Платежи'],['cal','Календарь'],['bal','Балансы'],['debt','Долги'],['goal','Цели'],['acc','Счета'],['set','Настройки']];
   app.append(el('div',{class:'top'},el('div',{class:'bar'},el('a',{href:'../../',class:'muted small'},'← Проекты'),el('h1',{},'Планер бюджета'),el('span',{id:'status',class:'status'},store.status),el('div',{class:'seg'},['RUB','USD'].map(c=>el('button',{class:disp===c?'on':'',onclick:()=>{ disp=c; try{ localStorage.setItem('budget_disp',c); }catch(e){} render(); }},c==='RUB'?'₽':'$')))),
     el('div',{class:'tabs'},tabs.map(([k,n])=>el('button',{class:'tab'+(tab===k?' on':''),onclick:()=>{tab=k;render();}},n)))));
-  const w=el('div',{class:'wrap'}); app.append(w);
+  const w=el('div',{class:'wrap'+(tab==='pay'?' wide':'')}); app.append(w);
   ({now:vNow,pay:vPay,cal:vCal,bal:vBal,debt:vDebt,goal:vGoal,acc:vAcc,set:vSet})[tab](w);
 }
 function kpi(l,v,s,cls){ return el('div',{class:'card kpi'},el('div',{class:'l'},l),el('div',{class:'v '+(cls||'')},v),s?el('div',{class:'s'},s):null); }
@@ -260,12 +260,13 @@ function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,to
 function isSomeday(p){ const sc=p.schedule||{}; return sc.type==='once'?!sc.date:!sc.start; }
 function setPayDate(p,iso){ const sc=p.schedule=p.schedule||{type:'once'}; if(sc.type==='once'){ sc.date=iso||null; } else { sc.start=iso||null; if(iso) sc.day=+iso.slice(8,10); } }
 function setPayType(p,t){ const sc=p.schedule||{type:'once'}; if(sc.type===t) return; const nd=nextDate(p)||sc.start||sc.date||null;
-  p.schedule=t==='once'?{type:'once',date:nd}:{type:'monthly',day:nd?+nd.slice(8,10):1,every:1,start:nd,end:null}; }
+  p.schedule=t==='once'?{type:'once',date:nd}:t==='weekly'?{type:'weekly',start:nd,end:null}:{type:'monthly',day:nd?+nd.slice(8,10):1,every:1,start:nd,end:null}; }
 function bucketOf(p,today){ const nd=nextDate(p,today); if(!nd) return 'someday'; const m=(+nd.slice(0,4)-+today.slice(0,4))*12+(+nd.slice(5,7)-+today.slice(5,7)); return m<=0?'m0':m===1?'m1':m===2?'m2':'later'; }
 const catHue=id=>{ let h=0; for(const ch of (id||'')) h=(h*31+ch.charCodeAt(0))%360; return h; };
 const catBg=id=>id?'hsla('+catHue(id)+',65%,55%,.14)':'transparent';
 function ensureOrder(){ let n=0; const miss=S().payments.some(p=>p.order==null); if(miss) S().payments.forEach(p=>{ p.order=++n; }); }
 const BUCKETS=[['all','Все'],['m0','Этот месяц'],['m1','Следующий'],['m2','Через 2'],['later','Позже'],['someday','Когда-нибудь']];
+const TYPE_ORDER={once:0,weekly:1,monthly:2,biweekly:1}; const TYPE_NAMES=[['once','разовый'],['weekly','еженед.'],['monthly','ежемес.']];
 function vPay(w){
   const today=todayISO(); ensureOrder();
   const seg=(opts,cur,set)=>{ const sg=el('div',{class:'seg'}); for(const [k,n] of opts) sg.append(el('button',{class:cur===k?'on':'',onclick:()=>{set(k);render();}},n)); return sg; };
@@ -273,25 +274,34 @@ function vPay(w){
   w.append(el('div',{class:'row between',style:'margin-bottom:10px'},seg([['all','Все'],['personal','Личное'],['clippoint','ClipPoint']],payFilter.scope,v=>payFilter.scope=v),el('button',{class:'pri',onclick:()=>editPayment(null)},'+ Платёж')));
   const inScope=x=>payFilter.scope==='all'||x.scope===payFilter.scope;
   const isDebtCat=x=>catName(x.category)==='Долги', isCredCat=x=>catName(x.category)==='Кредиты';
-  // --- сводник: этот месяц, следующий, через 2, когда-нибудь
-  const c=compute();
-  const ms=[0,1,2].map(i=>{ const k=mkey(addMonths(today,i)); return {k,from:k+'-01',to:k+'-'+String(lastDay(+k.slice(0,4),+k.slice(5,7))).padStart(2,'0')}; });
-  const cols=ms.map(m=>{ const r={inc:0,exp:0,sav:0};
-    for(const o of occurrences(m.from,m.to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.kind==='income') r.inc+=o.rub; else if(o.kind==='saving') r.sav+=o.rub; else r.exp+=o.rub; }
-    r.rest=r.inc-r.exp-r.sav; r.debt=S().debts.filter(d=>d.dir!=='owed').reduce((t,d)=>t+toB(debtRemaining(d,m.to),d.currency),0);
-    const credPaid=occurrences(c.last?addDays(c.last.date,1):today,m.to).filter(o=>o.status!=='cancelled'&&o.status!=='skipped'&&o.kind==='expense'&&o.scope==='personal'&&isCredCat(o)).reduce((t,o)=>t+o.rub,0);
-    r.cred=Math.max(0,c.credDebt-credPaid); return r; });
-  const sc={inc:0,exp:0,sav:0,debt:0,cred:0}; for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income') sc.inc+=v; else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else sc.exp+=v; } sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc);
-  const ROWS=[['Доходы','inc','pos'],['Расходы','exp',''],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
-  const sumT=el('table',{class:'sum'});
-  sumT.append(el('thead',{},el('tr',{},el('th'),ms.map(m=>el('th',{class:'n'},fmtM(m.k))),el('th',{class:'n'},'Когда-нибудь'))));
-  sumT.append(el('tbody',{},ROWS.map(([n,k,cls])=>el('tr',{class:cls==='bold'?'bold':''},el('td',{},n),cols.map(r=>el('td',{class:'n '+(cls==='pos'?'pos':cls==='blue'?'blue':cls==='muted'?'muted':'')+(k==='rest'&&r[k]<0?' neg':'')},nf.format(D(r[k]))))))));
-  w.append(el('div',{class:'card'},el('h2',{},'Сводник, '+sym()),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Расходы включают платежи по долгам и кредитам. Долги и кредиты в месячных колонках = сколько останется на конец месяца; в «Когда-нибудь» = строки без даты.')));
+  const stype=x=>((x.schedule||{}).type)||'once'; const payById={}; for(const x of S().payments) payById[x.id]=x;
+  // --- периоды: эта неделя (пн-вс), следующая, этот месяц, +1, +2, когда-нибудь
+  const c=compute(); const dow=(new Date(today+'T00:00:00').getDay()+6)%7; const mon=addDays(today,-dow);
+  const mper=i=>{ const k=mkey(addMonths(today,i)); return {label:fmtM(k),from:k+'-01',to:k+'-'+String(lastDay(+k.slice(0,4),+k.slice(5,7))).padStart(2,'0')}; };
+  const periods=[{label:'Эта неделя',from:mon,to:addDays(mon,6)},{label:'След. неделя',from:addDays(mon,7),to:addDays(mon,13)},mper(0),mper(1),mper(2)];
+  const calc=(from,to)=>{ const r={inc:0,exp:0,expOnce:0,expReg:0,sav:0};
+    for(const o of occurrences(from,to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.kind==='income') r.inc+=o.rub; else if(o.kind==='saving') r.sav+=o.rub; else { r.exp+=o.rub; if(stype(payById[o.id]||{})==='once') r.expOnce+=o.rub; else r.expReg+=o.rub; } }
+    r.rest=r.inc-r.exp-r.sav; r.debt=S().debts.filter(d=>d.dir!=='owed').reduce((t,d)=>t+toB(debtRemaining(d,to),d.currency),0);
+    const credPaid=occurrences(c.last?addDays(c.last.date,1):today,to).filter(o=>o.status!=='cancelled'&&o.status!=='skipped'&&o.kind==='expense'&&o.scope==='personal'&&isCredCat(o)).reduce((t,o)=>t+o.rub,0);
+    r.cred=Math.max(0,c.credDebt-credPaid); return r; };
+  const renderSummary=()=>{ const cols=periods.map(pp=>calc(pp.from,pp.to));
+    const sc={inc:0,exp:0,expOnce:0,expReg:0,sav:0,debt:0,cred:0};
+    for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income') sc.inc+=v; else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else { sc.exp+=v; if(stype(x)==='once') sc.expOnce+=v; else sc.expReg+=v; } }
+    sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc);
+    const ROWS=[['Доходы','inc','pos'],['Расходы','exp',''],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
+    const sumT=el('table',{class:'sum'});
+    sumT.append(el('thead',{},el('tr',{},el('th'),periods.map(pp=>el('th',{class:'n'},pp.label)),el('th',{class:'n'},'Когда-нибудь'))));
+    const cell=(r,k,cls)=>el('td',{class:'n '+(cls==='pos'?'pos':cls==='blue'?'blue':cls==='muted'?'muted small':'')+(k==='rest'&&r[k]<0?' neg':'')},nf.format(D(r[k])));
+    sumT.append(el('tbody',{},ROWS.map(([n,k,cls])=>el('tr',{class:cls==='bold'?'bold':''},el('td',{class:cls==='muted'?'small muted':''},n),cols.map(r=>cell(r,k,cls))))));
+    return el('div',{class:'card'},el('h2',{},'Сводник, '+sym()),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели с понедельника по воскресенье ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). Расходы включают платежи по долгам и кредитам. Долги и кредиты в колонках периодов = сколько останется на конец периода; в «Когда-нибудь» = строки без даты.')); };
+  let sumCard=renderSummary(); w.append(sumCard);
   // --- таблица
-  let list=S().payments.filter(inScope); const bk={}; for(const x of list) bk[x.id]=bucketOf(x,today);
-  const bkCounts={}; for(const x of list) bkCounts[bk[x.id]]=(bkCounts[bk[x.id]]||0)+1;
-  const bkRow=el('div',{class:'row',style:'margin-bottom:8px;gap:6px;flex-wrap:wrap'}); for(const [k,n] of BUCKETS){ if(k!=='all'&&!bkCounts[k]) continue; bkRow.append(chip(payFilter.bucket===k,n+' '+(k==='all'?list.length:bkCounts[k]),()=>{payFilter.bucket=k;render();})); } w.append(bkRow);
-  if(payFilter.bucket!=='all') list=list.filter(x=>bk[x.id]===payFilter.bucket);
+  let list=S().payments.filter(inScope); const nd0={}; for(const x of list) nd0[x.id]=nextDate(x,today);
+  const inRange=(nd,a,b)=>!!nd&&nd>=a&&nd<=b;
+  const PRED={all:()=>true,w0:nd=>inRange(nd,periods[0].from,periods[0].to),w1:nd=>inRange(nd,periods[1].from,periods[1].to),m0:nd=>inRange(nd,periods[2].from,periods[2].to),m1:nd=>inRange(nd,periods[3].from,periods[3].to),m2:nd=>inRange(nd,periods[4].from,periods[4].to),later:nd=>!!nd&&nd>periods[4].to,someday:nd=>!nd};
+  const BK=[['all','Все'],['w0','Эта неделя'],['w1','След. неделя'],['m0','Этот месяц'],['m1','Следующий'],['m2','Через 2'],['later','Позже'],['someday','Когда-нибудь']];
+  const bkRow=el('div',{class:'row',style:'margin-bottom:8px;gap:6px;flex-wrap:wrap'}); for(const [k,n] of BK){ const cnt=list.filter(x=>PRED[k](nd0[x.id])).length; if(k!=='all'&&!cnt) continue; bkRow.append(chip(payFilter.bucket===k,n+' '+cnt,()=>{payFilter.bucket=k;render();})); } w.append(bkRow);
+  if(!PRED[payFilter.bucket]) payFilter.bucket='all'; list=list.filter(x=>PRED[payFilter.bucket](nd0[x.id]));
   const catCounts={}; for(const x of list){ const k=x.category||'none'; catCounts[k]=(catCounts[k]||0)+1; }
   const catRow=el('div',{class:'row',style:'margin-bottom:10px;gap:6px;flex-wrap:wrap'},chip(payFilter.cat==='all','Все категории',()=>{payFilter.cat='all';render();}));
   for(const ct of S().categories.filter(ct=>(payFilter.scope==='all'||ct.scope===payFilter.scope)&&catCounts[ct.id])) catRow.append(el('span',{class:'chip'+(payFilter.cat===ct.id?' blue':''),style:'cursor:pointer;background:'+(payFilter.cat===ct.id?'':catBg(ct.id)),onclick:()=>{payFilter.cat=ct.id;render();}},ct.name+' '+catCounts[ct.id]));
@@ -299,28 +309,35 @@ function vPay(w){
   w.append(catRow);
   if(payFilter.cat!=='all') list=list.filter(x=>(x.category||'none')===payFilter.cat);
   const q=(payFilter.q||'').trim().toLowerCase(); if(q) list=list.filter(x=>(x.name+' '+catName(x.category)+' '+(x.note||'')).toLowerCase().includes(q));
-  const keyOf={order:x=>x.order||0,cat:x=>(x.scope==='clippoint'?'1':'0')+catName(x.category)+'|'+x.name,name:x=>x.name.toLowerCase(),amount:x=>-toB(x.amount,x.currency),date:x=>nextDate(x,today)||'9999'};
-  const sk=keyOf[payFilter.sort]?payFilter.sort:'order', dir=payFilter.dir||1; const kf=keyOf[sk];
+  const catKey=x=>(x.scope==='clippoint'?'1':'0')+catName(x.category);
+  const keyOf={default:x=>catKey(x)+'|'+(TYPE_ORDER[stype(x)]||0)+'|'+(nd0[x.id]||'9999'),order:x=>x.order||0,cat:x=>catKey(x)+'|'+x.name,name:x=>x.name.toLowerCase(),amount:x=>-toB(x.amount,x.currency),date:x=>nd0[x.id]||'9999',type:x=>TYPE_ORDER[stype(x)]||0};
+  const sk=keyOf[payFilter.sort]?payFilter.sort:'default', dir=payFilter.dir||1; const kf=keyOf[sk];
   list.sort((a,b)=>{ const x=kf(a),y=kf(b); return (x<y?-1:x>y?1:0)*dir||((a.order||0)-(b.order||0)); });
-  const th=(k,label,cls)=>el('th',{class:(cls||'')+' sortable'+(sk===k?' on':''),onclick:()=>{ if(payFilter.sort===k) payFilter.dir=-(payFilter.dir||1); else { payFilter.sort=k; payFilter.dir=1; } render(); }},label,sk===k&&k!=='order'?(dir>0?' ↓':' ↑'):'');
-  const t=el('table',{class:'pay'},el('thead',{},el('tr',{},th('cat','Категория'),th('name','Платёж'),th('amount','Сумма','n'),el('th',{},'Валюта'),el('th',{class:'n'},'≈ '+sym()),th('date','Дата'),el('th',{},'Тип'),el('th',{class:'n'},sk==='order'?'':el('span',{class:'chip',style:'cursor:pointer',onclick:()=>{payFilter.sort='order';payFilter.dir=1;render();}},'свой порядок')))));
+  const th=(k,label,cls)=>el('th',{class:(cls||'')+' sortable'+(sk===k?' on':''),onclick:()=>{ if(payFilter.sort===k) payFilter.dir=-(payFilter.dir||1); else { payFilter.sort=k; payFilter.dir=1; } render(); }},label,sk===k?(dir>0?' ↓':' ↑'):'');
+  const sortChip=(k,n)=>el('span',{class:'chip'+(sk===k?' blue':''),style:'cursor:pointer',onclick:()=>{payFilter.sort=k;payFilter.dir=1;render();}},n);
+  const t=el('table',{class:'pay'},el('thead',{},el('tr',{},th('cat','Категория'),th('name','Платёж'),el('th',{},'Вид'),th('amount','Сумма','n'),el('th',{},'Валюта'),el('th',{class:'n'},'≈ '+sym()),th('date','Дата'),th('type','Тип'),el('th',{class:'n'},sortChip('default','базовая'),' ',sortChip('order','свой порядок')))));
   const tb=el('tbody'); t.append(tb);
-  const chg=fn=>e=>{ fn(e.target.value); touch(); render(); };
+  const approx=x=>(x.kind==='income'?'+':x.kind==='saving'?'→':'−')+nf.format(D(toB(x.amount,x.currency)));
   const move=(x,d)=>{ const i=list.indexOf(x); const y=list[i+d]; if(!y) return; if(x.order===y.order){ let n=0; S().payments.forEach(z=>z.order=++n); } const o=x.order; x.order=y.order; y.order=o; touch(); render(); };
-  for(const x of list){ const nd=nextDate(x,today); const sch=x.schedule||{type:'once'};
+  for(const x of list){ const nd=nd0[x.id];
+    const tr=el('tr',{style:'background:'+catBg(x.category)}); const ap=el('td',{class:'n muted'},approx(x)); const note=el('div',{class:'small muted'},nd?'':'когда-нибудь');
+    // правка в строке: без полной перерисовки, иначе теряется фокус в полях даты
+    const refresh=()=>{ touch(); const n=renderSummary(); sumCard.replaceWith(n); sumCard=n; ap.textContent=approx(x); note.textContent=nextDate(x,today)?'':'когда-нибудь'; tr.style.background=catBg(x.category); am.className='inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''); };
+    const chg=fn=>e=>{ fn(e.target.value); refresh(); };
     const catSel=el('select',{class:'inline sm'},el('option',{value:''},'—'),S().categories.filter(ct=>ct.scope===x.scope).map(ct=>el('option',{value:ct.id,selected:x.category===ct.id?'':null},ct.name))); catSel.onchange=chg(v=>x.category=v||null);
     const nm=el('input',{type:'text',class:'inline wide',value:x.name}); nm.onchange=chg(v=>x.name=v);
+    const kd=el('select',{class:'inline sm'},[['expense','расход'],['income','доход'],['saving','накопл.']].map(([v,n])=>el('option',{value:v,selected:(x.kind||'expense')===v?'':null},n))); kd.onchange=chg(v=>x.kind=v);
     const am=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''),value:x.amount}); am.onchange=chg(v=>x.amount=parseFloat(v)||0);
     const cu=el('select',{class:'inline sm'},CURS.map(cc=>el('option',{value:cc,selected:x.currency===cc?'':null},cc))); cu.onchange=chg(v=>x.currency=v);
     const dt=el('input',{type:'date',class:'inline date',value:nd||''}); dt.onchange=chg(v=>setPayDate(x,v));
-    const ty=el('select',{class:'inline sm'},[['monthly','регулярный'],['once','разовый']].map(([v,n])=>el('option',{value:v,selected:sch.type===v?'':null},n))); ty.onchange=chg(v=>setPayType(x,v));
-    tb.append(el('tr',{style:'background:'+catBg(x.category)},el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{},nm),el('td',{class:'n'},am),el('td',{},cu),el('td',{class:'n muted'},(x.kind==='income'?'+':x.kind==='saving'?'→':'−')+nf.format(D(toB(x.amount,x.currency)))),
-      el('td',{},dt,!nd?el('div',{class:'small muted'},'когда-нибудь'):null),el('td',{},ty,x.kind!=='expense'?el('div',{class:'small '+(x.kind==='income'?'pos':'blue')},x.kind==='income'?'доход':'накопление'):null),
-      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',onclick:()=>editPayment(x)},'…')))); }
-  if(!list.length) tb.append(el('tr',{},el('td',{colspan:8,class:'empty'},'пусто')));
+    const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},n))); ty.onchange=chg(v=>setPayType(x,v));
+    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{},nm),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),
+      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',onclick:()=>editPayment(x)},'…')));
+    tb.append(tr); }
+  if(!list.length) tb.append(el('tr',{},el('td',{colspan:9,class:'empty'},'пусто')));
   const qi=el('input',{type:'search',id:'payq',placeholder:'поиск по названию, категории, заметке',value:payFilter.q||'',style:'margin-bottom:10px'}); qi.oninput=()=>{ payFilter.q=qi.value; render(); const n=document.querySelector('#payq'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
   const tot=list.reduce((a,x)=>{ const v=toB(x.amount,x.currency); if(x.kind==='income') a.inc+=v; else a.exp+=v; return a; },{inc:0,exp:0});
-  w.append(el('div',{class:'card'},qi,el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Строк: '+list.length+' · доходы '+rub(tot.inc)+' · расходы и накопления '+rub(tot.exp)+'. Правки сохраняются сами. Дата = ближайший платёж; пустая дата = когда-нибудь. «…» открывает остальные поля.')));
+  w.append(el('div',{class:'card'},qi,el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Строк: '+list.length+' · доходы '+rub(tot.inc)+' · расходы и накопления '+rub(tot.exp)+'. Правки сохраняются сами; порядок и фильтры обновятся при следующем открытии вкладки. Дата = ближайший платёж, пустая = когда-нибудь. Базовая сортировка: категория → разовые, еженедельные, ежемесячные → дата. «…» открывает остальные поля.')));
 }
 function editPayment(p){
   const isNew=!p; p=p?JSON.parse(JSON.stringify(p)):{id:rid('p_'),name:'',kind:'expense',scope:payFilter.scope==='clippoint'?'clippoint':'personal',category:null,amount:0,currency:'RUB',schedule:{type:'monthly',day:+todayISO().slice(8,10),every:1,start:todayISO(),end:null},mandatory:true,active:true,note:'',debtId:null,accountId:null};
@@ -331,10 +348,11 @@ function editPayment(p){
   const cats=()=>S().categories.filter(c=>c.scope===p.scope).map(c=>[c.id,c.name]);
   let catBox; const catSel=()=>sel('Категория','category',[['','—'],...cats()]);
   const schedBox=el('div');
-  const renderSched=()=>{ schedBox.innerHTML=''; const st=el('select',{},[['monthly','регулярный, раз в месяц'],['once','разовый']].map(([v,n])=>el('option',{value:v,selected:s.type===v?'':null},n))); st.onchange=()=>{ s.type=st.value; renderSched(); };
+  const renderSched=()=>{ schedBox.innerHTML=''; const st=el('select',{},[['monthly','регулярный, раз в месяц'],['weekly','регулярный, раз в неделю'],['once','разовый']].map(([v,n])=>el('option',{value:v,selected:s.type===v?'':null},n))); st.onchange=()=>{ s.type=st.value; renderSched(); };
     schedBox.append(el('label',{class:'f'},el('span',{},'Тип'),st));
     const di=(label,key,type='date')=>{ const i=el('input',{type,value:s[key]||''}); i.oninput=()=>{ s[key]=type==='number'?parseInt(i.value)||1:i.value||null; }; return el('label',{class:'f'},el('span',{},label),i); };
     if(s.type==='once') schedBox.append(di('Дата (пусто = когда-нибудь)','date'));
+    else if(s.type==='weekly') schedBox.append(el('div',{class:'f2'},di('С даты (пусто = когда-нибудь)','start'),di('По дату (пусто = бессрочно)','end')));
     else { s.day=s.day||1; s.every=1; schedBox.append(di('День месяца (31 = последний)','day','number'),el('div',{class:'f2'},di('С даты (пусто = когда-нибудь)','start'),di('По дату (пусто = бессрочно)','end'))); } };
   renderSched();
   const chk=(label,key)=>{ const i=el('input',{type:'checkbox',style:'width:auto'}); i.checked=!!p[key]; i.onchange=()=>{ p[key]=i.checked; }; return el('label',{class:'row',style:'margin:6px 0'},i,' ',label); };
