@@ -54,7 +54,7 @@
   input.inline { width:130px; padding:6px 8px; font-size:14px; }
   input.inline.wide { width:200px; } input.inline.num { width:110px; } input.inline.date { width:140px; } input.inline.pos { color:var(--green); } input.inline.blue { color:var(--blue); }
   select.inline { width:auto; padding:6px 8px; font-size:13px; } select.inline.sm { max-width:130px; }
-  button.ico { padding:4px 7px; font-size:12px; margin-left:2px; }
+  button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); }
   table.pay { width:100%; } table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); } table.pay td.grow { width:40%; } table.pay td.grow input { width:100%; min-width:140px; } table.pay tr.done { opacity:.45; }
   select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } table.sum tr.bold td { font-weight:700; } .blue { color:var(--blue); }
   label.f { display:block; margin-bottom:10px; }
@@ -337,7 +337,7 @@ function vPay(w){
   if(payFilter.cat!=='all') list=list.filter(x=>(x.category||'none')===payFilter.cat);
   const q=(payFilter.q||'').trim().toLowerCase(); if(q) list=list.filter(x=>(x.name+' '+catName(x.category)+' '+(x.note||'')).toLowerCase().includes(q));
   const catKey=x=>catSortKey(x.category);
-  const keyOf={default:x=>catKey(x)+'|'+(TYPE_ORDER[stype(x)]||0)+'|'+(d0[x.id]||'9999'),order:x=>catKey(x)+'|'+String(Math.round((x.order||0)*10)).padStart(6,'0'),name:x=>x.name.toLowerCase(),amount:x=>-toB(x.amount,x.currency),date:x=>d0[x.id]||'9999',type:x=>TYPE_ORDER[stype(x)]||0};
+  const keyOf={default:x=>catKey(x)+'|'+(d0[x.id]?'0':'1')+'|'+(TYPE_ORDER[stype(x)]||0)+'|'+(d0[x.id]||'9999'),order:x=>catKey(x)+'|'+String(Math.round((x.order||0)*10)).padStart(6,'0'),name:x=>x.name.toLowerCase(),amount:x=>-toB(x.amount,x.currency),date:x=>d0[x.id]||'9999',type:x=>TYPE_ORDER[stype(x)]||0};
   const sk=keyOf[payFilter.sort]?payFilter.sort:'default', dir=payFilter.dir||1; const kf=keyOf[sk]; const grouped=sk==='default'||sk==='order';
   list.sort((a,b)=>{ const x=kf(a),y=kf(b); return (x<y?-1:x>y?1:0)*dir||((a.order||0)-(b.order||0)); });
   const th=(k,label,cls)=>el('th',{class:(cls||'')+' sortable'+(sk===k?' on':''),onclick:()=>{ if(payFilter.sort===k) payFilter.dir=-(payFilter.dir||1); else { payFilter.sort=k; payFilter.dir=1; } render(); }},label,sk===k?(dir>0?' ↓':' ↑'):'');
@@ -368,7 +368,9 @@ function vPay(w){
     const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
     tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
-      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',onclick:()=>editPayment(x)},'…')));
+      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',title:'Сделать копию',onclick:()=>{ const cp=JSON.parse(JSON.stringify(x)); cp.id=rid('p_'); cp.fromId=null; cp.name=x.name+' (копия)'; cp.order=(x.order||0)+0.5; S().payments.push(cp); let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(z=>z.order=++n); touch(); render(); }},'⧉'),
+        el('button',{class:'ico danger',title:'Удалить',onclick:()=>{ if(confirm('Удалить «'+x.name+'»?')){ S().payments=S().payments.filter(z=>z.id!==x.id); touch(); render(); } }},'✕'),
+        el('button',{class:'ico',title:'Остальные поля',onclick:()=>editPayment(x)},'…')));
     return tr; };
   if(grouped){ let cur=null, rows=[]; const flush=()=>{ if(!rows.length) return; tb.append(groupHeader(cur,rows)); if(!collapsed[cur||'none']) rows.forEach(x=>tb.append(row(x))); rows=[]; };
     for(const x of list){ if(rows.length&&(x.category||null)!==cur) flush(); cur=x.category||null; rows.push(x); } flush(); }
