@@ -54,9 +54,9 @@
   input.inline { width:130px; padding:6px 8px; font-size:14px; }
   input.inline.wide { width:200px; } input.inline.num { width:110px; } input.inline.date { width:140px; } input.inline.pos { color:var(--green); } input.inline.blue { color:var(--blue); }
   select.inline { width:auto; padding:6px 8px; font-size:13px; } select.inline.sm { max-width:130px; }
-  button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); }
+  button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); } button.ico.mand { font-size:14px; color:var(--muted); } button.ico.mand.on { color:var(--ink); }
   table.pay { width:100%; } table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); } table.pay td.grow { width:40%; } table.pay td.grow input { width:100%; min-width:140px; } table.pay tr.done { opacity:.45; }
-  select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } table.sum tr.bold td { font-weight:700; } .blue { color:var(--blue); }
+  select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } table.sum tr.bold td { font-weight:700; } table.sum td:first-child { white-space:nowrap; } .blue { color:var(--blue); }
   label.f { display:block; margin-bottom:10px; }
   label.f span { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
   .f2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -301,16 +301,16 @@ function vPay(w){
   const mper=i=>{ const k=mkey(addMonths(today,i)); return {label:fmtM(k),from:k+'-01',to:k+'-'+String(lastDay(+k.slice(0,4),+k.slice(5,7))).padStart(2,'0')}; };
   const periods=[{label:'Эта неделя',from:mon,to:addDays(mon,6)},{label:'След. неделя',from:addDays(mon,7),to:addDays(mon,13)},mper(0),mper(1),mper(2)];
   const pastP={label:'Прошедшие',from:addDays(snapD,1),to:addDays(today,-1)};
-  const calc=(from,to)=>{ const r={inc:0,exp:0,expOnce:0,expReg:0,sav:0,hang:0};
-    for(const o of occurrences(from,to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.status==='skipped') r.hang+=o.rub; if(o.kind==='income') r.inc+=o.rub; else if(o.kind==='saving') r.sav+=o.rub; else { r.exp+=o.rub; if(stype(payById[o.id]||{})==='once') r.expOnce+=o.rub; else r.expReg+=o.rub; } }
+  const calc=(from,to)=>{ const r={inc:0,incMand:0,exp:0,expMand:0,expOnce:0,expReg:0,sav:0,hang:0};
+    for(const o of occurrences(from,to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.status==='skipped') r.hang+=o.rub; if(o.kind==='income'){ r.inc+=o.rub; if(o.mandatory) r.incMand+=o.rub; } else if(o.kind==='saving') r.sav+=o.rub; else { r.exp+=o.rub; if(o.mandatory) r.expMand+=o.rub; if(stype(payById[o.id]||{})==='once') r.expOnce+=o.rub; else r.expReg+=o.rub; } }
     r.rest=r.inc-r.exp-r.sav; r.debt=S().debts.filter(d=>d.dir!=='owed').reduce((t,d)=>t+toB(debtRemaining(d,to),d.currency),0);
     const credPaid=occurrences(addDays(snapD,1),to).filter(o=>o.status!=='cancelled'&&o.status!=='skipped'&&o.kind==='expense'&&o.scope==='personal'&&isCredCat(o)).reduce((t,o)=>t+o.rub,0);
     r.cred=Math.max(0,c.credDebt-credPaid); return r; };
   const renderSummary=()=>{ const cols=periods.map(pp=>calc(pp.from,pp.to));
-    const sc={inc:0,exp:0,expOnce:0,expReg:0,sav:0,debt:0,cred:0,hang:0};
-    for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income') sc.inc+=v; else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else { sc.exp+=v; if(stype(x)==='once') sc.expOnce+=v; else sc.expReg+=v; } }
+    const sc={inc:0,incMand:0,exp:0,expMand:0,expOnce:0,expReg:0,sav:0,debt:0,cred:0,hang:0};
+    for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income'){ sc.inc+=v; if(x.mandatory) sc.incMand+=v; } else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else { sc.exp+=v; if(x.mandatory) sc.expMand+=v; if(stype(x)==='once') sc.expOnce+=v; else sc.expReg+=v; } }
     sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc); const pc=calc(pastP.from,pastP.to); cols.push(pc);
-    const ROWS=[['Доходы','inc','pos'],['Расходы','exp',''],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
+    const ROWS=[['Доходы','inc','pos'],['— обязательные','incMand','muted'],['Расходы','exp',''],['— обязательные','expMand','muted'],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
     const sumT=el('table',{class:'sum'});
     cols.unshift(cols.pop()); // прошедшие первой колонкой
     sumT.append(el('thead',{},el('tr',{},el('th'),el('th',{class:'n'},'Прошедшие'),periods.map(pp=>el('th',{class:'n'},pp.label)),el('th',{class:'n'},'Когда-нибудь'))));
@@ -368,7 +368,7 @@ function vPay(w){
     const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
     tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
-      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',title:'Сделать копию',onclick:()=>{ const cp=JSON.parse(JSON.stringify(x)); cp.id=rid('p_'); cp.fromId=null; cp.name=x.name+' (копия)'; cp.order=(x.order||0)+0.5; S().payments.push(cp); let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(z=>z.order=++n); touch(); render(); }},'⧉'),
+      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico mand'+(x.mandatory?' on':''),title:x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным',onclick:e=>{ x.mandatory=!x.mandatory; e.currentTarget.classList.toggle('on',!!x.mandatory); e.currentTarget.textContent=x.mandatory?'☑':'☐'; e.currentTarget.title=x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным'; refresh(); }},x.mandatory?'☑':'☐'),el('button',{class:'ico',title:'Сделать копию',onclick:()=>{ const cp=JSON.parse(JSON.stringify(x)); cp.id=rid('p_'); cp.fromId=null; cp.name=x.name+' (копия)'; cp.order=(x.order||0)+0.5; S().payments.push(cp); let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(z=>z.order=++n); touch(); render(); }},'⧉'),
         el('button',{class:'ico danger',title:'Удалить',onclick:()=>{ if(confirm('Удалить «'+x.name+'»?')){ S().payments=S().payments.filter(z=>z.id!==x.id); touch(); render(); } }},'✕'),
         el('button',{class:'ico',title:'Остальные поля',onclick:()=>editPayment(x)},'…')));
     return tr; };
