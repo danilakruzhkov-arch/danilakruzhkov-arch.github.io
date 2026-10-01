@@ -272,7 +272,8 @@ function vNow(w){
 // --- Платежи ---
 function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,today,addMonths(today,13))[0]||null; }
 function isSomeday(p){ const sc=p.schedule||{}; return sc.type==='once'?!sc.date:!sc.start; }
-function setPayDate(p,iso){ const sc=p.schedule=p.schedule||{type:'once'}; if(sc.type==='once'){ sc.date=iso||null; } else { sc.start=iso||null; if(iso) sc.day=+iso.slice(8,10); } }
+function setPayDate(p,iso){ const sc=p.schedule=p.schedule||{type:'once'}; if(sc.type==='once'){ sc.date=iso||null; return; } sc.start=iso||null; if(!iso) return; if(sc.type==='monthly') sc.day=+iso.slice(8,10);
+  const t=todayISO(); if(iso<t){ sc.start=expand({...sc,start:iso},t,addMonths(t,14))[0]||t; } } // регулярный с прошлой датой переносится на ближайший период: прошлые периоды заводятся разовыми
 function setPayType(p,t){ const sc=p.schedule||{type:'once'}; if(sc.type===t) return; const nd=nextDate(p)||sc.start||sc.date||null;
   p.schedule=t==='once'?{type:'once',date:nd}:t==='weekly'?{type:'weekly',start:nd,end:null}:{type:'monthly',day:nd?+nd.slice(8,10):1,every:1,start:nd,end:null}; }
 function bucketOf(p,today){ const nd=nextDate(p,today); if(!nd) return 'someday'; const m=(+nd.slice(0,4)-+today.slice(0,4))*12+(+nd.slice(5,7)-+today.slice(5,7)); return m<=0?'m0':m===1?'m1':m===2?'m2':'later'; }
@@ -287,11 +288,12 @@ function vPay(w){
   const today=todayISO(); ensureOrder(); ensureCatOrder(); const snapD=lastSnapDate();
   const seg=(opts,cur,set)=>{ const sg=el('div',{class:'seg'}); for(const [k,n] of opts) sg.append(el('button',{class:cur===k?'on':'',onclick:()=>{set(k);render();}},n)); return sg; };
   const chip=(on,label,fn)=>el('span',{class:'chip'+(on?' blue':''),style:'cursor:pointer',onclick:fn},label);
-  w.append(el('div',{class:'row between',style:'margin-bottom:10px'},seg([['all','Все'],['personal','Личное'],['clippoint','ClipPoint']],payFilter.scope,v=>payFilter.scope=v),el('button',{class:'pri',onclick:()=>editPayment(null)},'+ Платёж')));
+  w.append(el('div',{class:'row between',style:'margin-bottom:10px;flex-wrap:wrap;gap:8px'},el('div',{class:'row',style:'gap:8px;flex-wrap:wrap'},seg([['all','Все'],['personal','Личное'],['clippoint','ClipPoint']],payFilter.scope,v=>payFilter.scope=v),seg([['all','Все записи'],['nopast','Скрыть прошедшие'],['noconf','Скрыть подтверждённые']],payFilter.past||'all',v=>payFilter.past=v)),el('button',{class:'pri',onclick:()=>editPayment(null)},'+ Платёж')));
   const inScope=x=>payFilter.scope==='all'||x.scope===payFilter.scope;
   const isDebtCat=x=>catName(x.category)==='Долги', isCredCat=x=>catName(x.category)==='Кредиты';
   const stype=x=>((x.schedule||{}).type)||'once'; const payById={}; for(const x of S().payments) payById[x.id]=x;
   const dateOf=x=>stype(x)==='once'?((x.schedule||{}).date||null):nextDate(x,today); // разовый: его дата (может быть в прошлом); регулярный: ближайшая
+  const isPast=x=>{ const d=dateOf(x); return !!d&&d<today; }; const isConfPast=x=>isPast(x)&&postStatus(x.id,dateOf(x))==='confirmed';
   const sgn=x=>x.kind==='income'?1:-1;
   // --- периоды: эта неделя (пн-вс), следующая, этот месяц, +1, +2, когда-нибудь, прошедшие (после последнего снимка)
   const c=compute(); const dow=(new Date(today+'T00:00:00').getDay()+6)%7; const mon=addDays(today,-dow);
@@ -315,7 +317,8 @@ function vPay(w){
     return el('div',{class:'card'},el('h2',{},'Сводник, '+sym()),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели пн–вс ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). «Прошедшие» = с '+fmtD(pastP.from)+' (после последнего снимка) по вчера'+(pc.hang?', из них висит не оплаченных '+rub(pc.hang):'')+'. Долги и кредиты в колонках = остаток на конец периода.')); };
   let sumCard=renderSummary(); w.append(sumCard);
   // --- таблица
-  let list=S().payments.filter(inScope); const d0={}; for(const x of list) d0[x.id]=dateOf(x);
+  let list=S().payments.filter(inScope); if(payFilter.past==='nopast') list=list.filter(x=>!isPast(x)); else if(payFilter.past==='noconf') list=list.filter(x=>!isConfPast(x));
+  const d0={}; for(const x of list) d0[x.id]=dateOf(x);
   const inRange=(d,a,b)=>!!d&&d>=a&&d<=b;
   const PRED={all:()=>true,past:d=>!!d&&d<today&&d>snapD,w0:d=>inRange(d,periods[0].from,periods[0].to),w1:d=>inRange(d,periods[1].from,periods[1].to),m0:d=>inRange(d,periods[2].from,periods[2].to),m1:d=>inRange(d,periods[3].from,periods[3].to),m2:d=>inRange(d,periods[4].from,periods[4].to),later:d=>!!d&&d>periods[4].to,someday:d=>!d,archive:d=>!!d&&d<=snapD};
   const BK=[['all','Все'],['past','Прошедшие'],['w0','Эта неделя'],['w1','След. неделя'],['m0','Этот месяц'],['m1','Следующий'],['m2','Через 2'],['later','Позже'],['someday','Когда-нибудь'],['archive','До снимка']];
@@ -356,8 +359,8 @@ function vPay(w){
     const kd=el('select',{class:'inline sm'},[['expense','расход'],['income','доход'],['saving','накопл.']].map(([v,n])=>el('option',{value:v,selected:(x.kind||'expense')===v?'':null},n))); kd.onchange=chg(v=>x.kind=v);
     const am=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''),value:x.amount}); am.onchange=chg(v=>x.amount=parseFloat(v)||0);
     const cu=el('select',{class:'inline sm'},CURS.map(cc=>el('option',{value:cc,selected:x.currency===cc?'':null},cc))); cu.onchange=chg(v=>x.currency=v);
-    const dt=el('input',{type:'date',class:'inline date',value:d||''}); dt.onchange=chg(v=>setPayDate(x,v));
-    const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},n))); ty.onchange=chg(v=>setPayType(x,v));
+    const dt=el('input',{type:'date',class:'inline date',value:d||'',min:stype(x)==='once'?null:today}); dt.onchange=chg(v=>{ setPayDate(x,v); dt.value=dateOf(x)||''; });
+    const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
     tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
       el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',onclick:()=>editPayment(x)},'…')));
@@ -392,7 +395,7 @@ function editPayment(p){
     el('div',{class:'f2'},sel('Гасит долг','debtId',[['','—'],...S().debts.map(d=>[d.id,d.name])]),sel('Счёт','accountId',[['','—'],...S().accounts.filter(a=>!a.archived).map(a=>[a.id,a.name])])),
     chk('Обязательный','mandatory'),inp('Заметка','note'));
   modal(isNew?'Новый платёж':'Платёж',f,[isNew?null:el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить платёж?')){ S().payments=S().payments.filter(x=>x.id!==p.id); touch(); closeModal(); render(); } }},'Удалить'),
-    el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0) S().payments[i]=p; else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
+    el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; if(p.schedule.type!=='once'&&p.schedule.start&&p.schedule.start<todayISO()) setPayDate(p,p.schedule.start); const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0) S().payments[i]=p; else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
 }
 // --- Календарь ---
 function vCal(w){
