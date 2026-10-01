@@ -54,7 +54,7 @@
   input.inline { width:130px; padding:6px 8px; font-size:14px; }
   input.inline.wide { width:200px; } input.inline.num { width:110px; } input.inline.date { width:140px; } input.inline.pos { color:var(--green); } input.inline.blue { color:var(--blue); }
   select.inline { width:auto; padding:6px 8px; font-size:13px; } select.inline.sm { max-width:130px; }
-  button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); } button.ico.mand { font-size:14px; color:var(--muted); } button.ico.mand.on { color:var(--ink); }
+  button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); } input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; } input[type=number] { -moz-appearance:textfield; appearance:textfield; } button.ico.mand { font-size:14px; color:var(--muted); } button.ico.mand.on { color:var(--ink); }
   table.pay { width:100%; } table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); } table.pay td.grow { width:40%; } table.pay td.grow input { width:100%; min-width:140px; } table.pay tr.done { opacity:.45; }
   select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } table.sum tr.bold td { font-weight:700; } table.sum td:first-child { white-space:nowrap; } .blue { color:var(--blue); }
   label.f { display:block; margin-bottom:10px; }
@@ -227,6 +227,8 @@ function materialize(){ // прошедшие даты регулярных пл
   if(add.length){ S().payments.push(...add); }
   if(changed){ let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(x=>x.order=++n); touch(); }
 }
+document.addEventListener('keydown',e=>{ if(e.target.type==='number'&&(e.key==='ArrowUp'||e.key==='ArrowDown')) e.preventDefault(); });
+document.addEventListener('wheel',e=>{ if(e.target.type==='number'&&document.activeElement===e.target) e.target.blur(); },{passive:true});
 function render(){
   const app=$('#app'); app.innerHTML=''; if(store.state) materialize();
   const tabs=[['now','Сейчас'],['pay','Платежи'],['cal','Календарь'],['bal','Балансы'],['debt','Долги'],['goal','Цели'],['acc','Счета'],['set','Настройки']];
@@ -364,7 +366,7 @@ function vPay(w){
     const kd=el('select',{class:'inline sm'},[['expense','расход'],['income','доход'],['saving','накопл.']].map(([v,n])=>el('option',{value:v,selected:(x.kind||'expense')===v?'':null},n))); kd.onchange=chg(v=>x.kind=v);
     const am=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''),value:x.amount}); am.onchange=chg(v=>x.amount=parseFloat(v)||0);
     const cu=el('select',{class:'inline sm'},CURS.map(cc=>el('option',{value:cc,selected:x.currency===cc?'':null},cc))); cu.onchange=chg(v=>x.currency=v);
-    const dt=el('input',{type:'date',class:'inline date',value:d||'',min:stype(x)==='once'?null:today}); dt.onchange=chg(v=>{ setPayDate(x,v); dt.value=dateOf(x)||''; });
+    const dt=el('input',{type:'date',class:'inline date',value:d||'',min:stype(x)==='once'?null:today}); dt.onchange=chg(v=>{ if(v&&v.slice(0,4)<'1900') return; setPayDate(x,v); }); dt.onblur=()=>{ const cur=dateOf(x)||''; if(dt.value!==cur) dt.value=cur; };
     const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
     tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
