@@ -55,7 +55,7 @@
   input.inline.wide { width:200px; } input.inline.num { width:110px; } input.inline.date { width:140px; } input.inline.pos { color:var(--green); } input.inline.blue { color:var(--blue); }
   select.inline { width:auto; padding:6px 8px; font-size:13px; } select.inline.sm { max-width:130px; }
   button.ico { padding:4px 7px; font-size:12px; margin-left:2px; }
-  table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); }
+  table.pay { width:100%; } table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); } table.pay td.grow { width:40%; } table.pay td.grow input { width:100%; min-width:140px; } table.pay tr.done { opacity:.45; }
   select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } table.sum tr.bold td { font-weight:700; } .blue { color:var(--blue); }
   label.f { display:block; margin-bottom:10px; }
   label.f span { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
@@ -286,15 +286,15 @@ const TYPE_ORDER={once:0,weekly:1,monthly:2,biweekly:1}; const TYPE_NAMES=[['onc
 function ensureCatOrder(){ if(S().categories.some(c=>c.order==null)){ let n=0; [...S().categories].sort((a,b)=>(a.scope===b.scope?0:a.scope==='personal'?-1:1)||a.name.localeCompare(b.name)).forEach(c=>c.order=++n); } }
 const catSortKey=id=>{ const c=S().categories.find(x=>x.id===id); return c?(c.scope==='clippoint'?'1':'0')+String(c.order||0).padStart(3,'0'):'2999'; };
 function vPay(w){
-  const today=todayISO(); ensureOrder(); ensureCatOrder(); const snapD=lastSnapDate();
+  const today=todayISO(); ensureOrder(); ensureCatOrder(); const snapD=lastSnapDate(); if(payFilter.sumHidden==null){ try{ payFilter.sumHidden=!!localStorage.getItem('budget_sumhidden'); }catch(e){} }
   const seg=(opts,cur,set)=>{ const sg=el('div',{class:'seg'}); for(const [k,n] of opts) sg.append(el('button',{class:cur===k?'on':'',onclick:()=>{set(k);render();}},n)); return sg; };
   const chip=(on,label,fn)=>el('span',{class:'chip'+(on?' blue':''),style:'cursor:pointer',onclick:fn},label);
-  w.append(el('div',{class:'row between',style:'margin-bottom:10px;flex-wrap:wrap;gap:8px'},el('div',{class:'row',style:'gap:8px;flex-wrap:wrap'},seg([['all','Все'],['personal','Личное'],['clippoint','ClipPoint']],payFilter.scope,v=>payFilter.scope=v),seg([['all','Все записи'],['nopast','Скрыть прошедшие'],['noconf','Скрыть подтверждённые']],payFilter.past||'all',v=>payFilter.past=v)),el('button',{class:'pri',onclick:()=>editPayment(null)},'+ Платёж')));
+  w.append(el('div',{class:'row between',style:'margin-bottom:10px;flex-wrap:wrap;gap:8px'},el('div',{class:'row',style:'gap:8px;flex-wrap:wrap'},seg([['all','Все'],['personal','Личное'],['clippoint','ClipPoint']],payFilter.scope,v=>payFilter.scope=v),seg([['all','Все записи'],['future','Предстоящие'],['noconf','Предстоящие + неподтверждённые'],['unconf','Только неподтверждённые']],payFilter.past||'all',v=>payFilter.past=v)),el('button',{class:'pri',onclick:()=>editPayment(null)},'+ Платёж')));
   const inScope=x=>payFilter.scope==='all'||x.scope===payFilter.scope;
   const isDebtCat=x=>catName(x.category)==='Долги', isCredCat=x=>catName(x.category)==='Кредиты';
   const stype=x=>((x.schedule||{}).type)||'once'; const payById={}; for(const x of S().payments) payById[x.id]=x;
   const dateOf=x=>stype(x)==='once'?((x.schedule||{}).date||null):nextDate(x,today); // разовый: его дата (может быть в прошлом); регулярный: ближайшая
-  const isPast=x=>{ const d=dateOf(x); return !!d&&d<today; }; const isConfPast=x=>isPast(x)&&postStatus(x.id,dateOf(x))==='confirmed';
+  const isPast=x=>{ const d=dateOf(x); return !!d&&d<=today; }; const isConfPast=x=>isPast(x)&&postStatus(x.id,dateOf(x))==='confirmed'; // прошедшие = с датой по сегодня включительно, у них есть статус
   const sgn=x=>x.kind==='income'?1:-1;
   // --- периоды: эта неделя (пн-вс), следующая, этот месяц, +1, +2, когда-нибудь, прошедшие (после последнего снимка)
   const c=compute(); const dow=(new Date(today+'T00:00:00').getDay()+6)%7; const mon=addDays(today,-dow);
@@ -312,18 +312,22 @@ function vPay(w){
     sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc); const pc=calc(pastP.from,pastP.to); cols.push(pc);
     const ROWS=[['Доходы','inc','pos'],['Расходы','exp',''],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
     const sumT=el('table',{class:'sum'});
-    sumT.append(el('thead',{},el('tr',{},el('th'),periods.map(pp=>el('th',{class:'n'},pp.label)),el('th',{class:'n'},'Когда-нибудь'),el('th',{class:'n'},'Прошедшие'))));
+    cols.unshift(cols.pop()); // прошедшие первой колонкой
+    sumT.append(el('thead',{},el('tr',{},el('th'),el('th',{class:'n'},'Прошедшие'),periods.map(pp=>el('th',{class:'n'},pp.label)),el('th',{class:'n'},'Когда-нибудь'))));
     const cell=(r,k,cls)=>el('td',{class:'n '+(cls==='pos'?'pos':cls==='blue'?'blue':cls==='muted'?'muted small':'')+(k==='rest'&&r[k]<0?' neg':'')},nf.format(D(r[k])));
     sumT.append(el('tbody',{},ROWS.map(([n,k,cls])=>el('tr',{class:cls==='bold'?'bold':''},el('td',{class:cls==='muted'?'small muted':''},n),cols.map(r=>cell(r,k,cls))))));
-    return el('div',{class:'card'},el('h2',{},'Сводник, '+sym()),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели пн–вс ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). «Прошедшие» = с '+fmtD(pastP.from)+' (после последнего снимка) по вчера'+(pc.hang?', из них висит не оплаченных '+rub(pc.hang):'')+'. Долги и кредиты в колонках = остаток на конец периода.')); };
+    const hid=!!payFilter.sumHidden; const tg=el('button',{class:'ico',onclick:()=>{ payFilter.sumHidden=!payFilter.sumHidden; try{ localStorage.setItem('budget_sumhidden',payFilter.sumHidden?'1':''); }catch(e){} render(); }},hid?'показать':'свернуть');
+    if(hid) return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg));
+    return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели пн–вс ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). «Прошедшие» = с '+fmtD(pastP.from)+' (после последнего снимка) по вчера'+(pc.hang?', из них висит не оплаченных '+rub(pc.hang):'')+'. Долги и кредиты в колонках = остаток на конец периода.')); };
   let sumCard=renderSummary(); w.append(sumCard);
   // --- таблица
-  let list=S().payments.filter(inScope); if(payFilter.past==='nopast') list=list.filter(x=>!isPast(x)); else if(payFilter.past==='noconf') list=list.filter(x=>!isConfPast(x));
+  let list=S().payments.filter(inScope); if(payFilter.past==='future') list=list.filter(x=>!isPast(x)); else if(payFilter.past==='noconf') list=list.filter(x=>!isConfPast(x)); else if(payFilter.past==='unconf') list=list.filter(x=>isPast(x)&&!isConfPast(x));
   const d0={}; for(const x of list) d0[x.id]=dateOf(x);
   const inRange=(d,a,b)=>!!d&&d>=a&&d<=b;
   const PRED={all:()=>true,past:d=>!!d&&d<today&&d>snapD,w0:d=>inRange(d,periods[0].from,periods[0].to),w1:d=>inRange(d,periods[1].from,periods[1].to),m0:d=>inRange(d,periods[2].from,periods[2].to),m1:d=>inRange(d,periods[3].from,periods[3].to),m2:d=>inRange(d,periods[4].from,periods[4].to),later:d=>!!d&&d>periods[4].to,someday:d=>!d,archive:d=>!!d&&d<=snapD};
   const BK=[['all','Все'],['past','Прошедшие'],['w0','Эта неделя'],['w1','След. неделя'],['m0','Этот месяц'],['m1','Следующий'],['m2','Через 2'],['later','Позже'],['someday','Когда-нибудь'],['archive','До снимка']];
-  const bkRow=el('div',{class:'row',style:'margin-bottom:8px;gap:6px;flex-wrap:wrap'}); for(const [k,n] of BK){ const cnt=list.filter(x=>PRED[k](d0[x.id])).length; if(k!=='all'&&!cnt) continue; bkRow.append(chip(payFilter.bucket===k,n+' '+cnt,()=>{payFilter.bucket=k;render();})); } w.append(bkRow);
+  const bkRow=el('div',{class:'row',style:'margin-bottom:8px;gap:6px;flex-wrap:wrap'}); for(const [k,n] of BK){ const cnt=list.filter(x=>PRED[k](d0[x.id])).length; if(k!=='all'&&!cnt) continue; bkRow.append(chip(payFilter.bucket===k,n+' '+cnt,()=>{payFilter.bucket=k;render();})); }
+  const sk0=payFilter.sort||'default'; bkRow.append(el('span',{class:'muted small',style:'margin-left:auto'},'порядок:'),chip(sk0==='default','базовый',()=>{payFilter.sort='default';payFilter.dir=1;render();}),chip(sk0==='order','свой',()=>{payFilter.sort='order';payFilter.dir=1;render();})); w.append(bkRow);
   if(!PRED[payFilter.bucket]) payFilter.bucket='all'; list=list.filter(x=>PRED[payFilter.bucket](d0[x.id])); if(payFilter.bucket==='all') list=list.filter(x=>!PRED.archive(d0[x.id])); // старое до снимка только по чипу
   const catCounts={}; for(const x of list){ const k=x.category||'none'; catCounts[k]=(catCounts[k]||0)+1; }
   const catRow=el('div',{class:'row',style:'margin-bottom:10px;gap:6px;flex-wrap:wrap'},chip(payFilter.cat==='all','Все категории',()=>{payFilter.cat='all';render();}));
@@ -338,7 +342,7 @@ function vPay(w){
   list.sort((a,b)=>{ const x=kf(a),y=kf(b); return (x<y?-1:x>y?1:0)*dir||((a.order||0)-(b.order||0)); });
   const th=(k,label,cls)=>el('th',{class:(cls||'')+' sortable'+(sk===k?' on':''),onclick:()=>{ if(payFilter.sort===k) payFilter.dir=-(payFilter.dir||1); else { payFilter.sort=k; payFilter.dir=1; } render(); }},label,sk===k?(dir>0?' ↓':' ↑'):'');
   const sortChip=(k,n)=>el('span',{class:'chip'+(sk===k?' blue':''),style:'cursor:pointer',onclick:()=>{payFilter.sort=k;payFilter.dir=1;render();}},n);
-  const t=el('table',{class:'pay'},el('thead',{},el('tr',{},el('th',{},'Категория'),th('name','Платёж'),el('th',{},'Вид'),th('amount','Сумма','n'),el('th',{},'Валюта'),el('th',{class:'n'},'≈ '+sym()),th('date','Дата'),th('type','Тип'),el('th',{},'Статус'),el('th',{class:'n'},sortChip('default','базовая'),' ',sortChip('order','свой порядок')))));
+  const t=el('table',{class:'pay'},el('thead',{},el('tr',{},el('th',{},'Категория'),th('name','Платёж'),el('th',{},'Вид'),th('amount','Сумма','n'),el('th',{},'Валюта'),el('th',{class:'n'},'≈ '+sym()),th('date','Дата'),th('type','Тип'),el('th',{},'Статус'),el('th'))));
   const tb=el('tbody'); t.append(tb);
   const approx=x=>(x.kind==='income'?'+':x.kind==='saving'?'→':'−')+nf.format(D(toB(x.amount,x.currency)));
   const move=(x,d)=>{ const same=list.filter(y=>(y.category||'')===(x.category||'')); const i=same.indexOf(x); const y=same[i+d]; if(!y) return; if(x.order===y.order){ let n=0; S().payments.forEach(z=>z.order=++n); } const o=x.order; x.order=y.order; y.order=o; touch(); render(); };
@@ -346,14 +350,14 @@ function vPay(w){
   const collapsed=payFilter.collapsed||(payFilter.collapsed={});
   const groupHeader=(cid,rows)=>{ const reg=rows.filter(x=>stype(x)!=='once').reduce((a,x)=>a+sgn(x)*monthlyEq(x),0); const once=rows.filter(x=>stype(x)==='once'&&d0[x.id]&&d0[x.id]>=today).reduce((a,x)=>a+sgn(x)*toB(x.amount,x.currency),0); const sd=rows.filter(x=>!d0[x.id]).length;
     const key=cid||'none'; const tr=el('tr',{class:'grp',style:'background:'+catBg(cid)});
-    tr.append(el('td',{colspan:10},el('div',{class:'row between'},el('div',{class:'row',style:'gap:8px;cursor:pointer',onclick:()=>{ collapsed[key]=!collapsed[key]; render(); }},el('span',{class:'muted'},collapsed[key]?'▸':'▾'),el('strong',{},cid?catName(cid):'Без категории'),el('span',{class:'small muted'},rows.length+' стр.')),
+    tr.append(el('td',{colspan:10},el('div',{class:'row between',style:'flex-wrap:wrap;gap:6px'},el('div',{class:'row',style:'gap:8px;cursor:pointer',onclick:()=>{ collapsed[key]=!collapsed[key]; render(); }},el('span',{class:'muted'},collapsed[key]?'▸':'▾'),el('strong',{},cid?catName(cid):'Без категории'),el('span',{class:'small muted'},rows.length+' стр.')),
       el('div',{class:'row small',style:'gap:14px'},el('span',{},el('span',{class:'muted'},'регулярные '),el('span',{class:reg<0?'':'pos'},sign(D(reg))+' '+sym()+'/мес')),el('span',{},el('span',{class:'muted'},'разовые впереди '),el('span',{class:once<0?'':'pos'},sign(D(once))+' '+sym())),sd?el('span',{class:'muted'},'когда-нибудь '+sd):null,
         cid?el('span',{},el('button',{class:'ico',onclick:()=>moveCat(cid,-1)},'▲'),el('button',{class:'ico',onclick:()=>moveCat(cid,1)},'▼')):null)))); return tr; };
   const STATUS=[['auto','прошёл, не отмечен'],['confirmed','оплачен'],['skipped','не оплачен, висит']];
-  const row=(x)=>{ const d=d0[x.id]; const tr=el('tr',{style:'background:'+catBg(x.category)}); const ap=el('td',{class:'n muted'},approx(x)); const note=el('div',{class:'small muted'},d?'':'когда-нибудь');
+  const row=(x)=>{ const d=d0[x.id]; const tr=el('tr',{style:'background:'+catBg(x.category),class:isConfPast(x)?'done':''}); const ap=el('td',{class:'n muted'},approx(x)); const note=el('div',{class:'small muted'},d?'':'когда-нибудь');
     const stCell=el('td'); const renderSt=()=>{ stCell.innerHTML=''; const dd=dateOf(x); if(dd&&dd<=today){ const st=postStatus(x.id,dd); const sl=el('select',{class:'inline sm st-'+st},STATUS.map(([v,n])=>el('option',{value:v,selected:st===v?'':null},n))); sl.onchange=()=>{ if(sl.value==='auto') delete S().postings[x.id+'|'+dd]; else S().postings[x.id+'|'+dd]={status:sl.value}; refresh(); renderSt(); }; stCell.append(sl); } };
     // правка в строке без полной перерисовки, иначе теряется фокус в полях даты
-    const refresh=()=>{ touch(); const n=renderSummary(); sumCard.replaceWith(n); sumCard=n; ap.textContent=approx(x); note.textContent=dateOf(x)?'':'когда-нибудь'; tr.style.background=catBg(x.category); am.className='inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''); renderSt(); };
+    const refresh=()=>{ touch(); const n=renderSummary(); sumCard.replaceWith(n); sumCard=n; tr.classList.toggle('done',isConfPast(x)); ap.textContent=approx(x); note.textContent=dateOf(x)?'':'когда-нибудь'; tr.style.background=catBg(x.category); am.className='inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''); renderSt(); };
     const chg=fn=>e=>{ fn(e.target.value); refresh(); };
     const catSel=el('select',{class:'inline sm'},el('option',{value:''},'—'),S().categories.filter(ct=>ct.scope===x.scope).map(ct=>el('option',{value:ct.id,selected:x.category===ct.id?'':null},ct.name))); catSel.onchange=chg(v=>x.category=v||null);
     const nm=el('input',{type:'text',class:'inline wide',value:x.name}); nm.onchange=chg(v=>x.name=v);
@@ -363,7 +367,7 @@ function vPay(w){
     const dt=el('input',{type:'date',class:'inline date',value:d||'',min:stype(x)==='once'?null:today}); dt.onchange=chg(v=>{ setPayDate(x,v); dt.value=dateOf(x)||''; });
     const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
-    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
+    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
       el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico',onclick:()=>editPayment(x)},'…')));
     return tr; };
   if(grouped){ let cur=null, rows=[]; const flush=()=>{ if(!rows.length) return; tb.append(groupHeader(cur,rows)); if(!collapsed[cur||'none']) rows.forEach(x=>tb.append(row(x))); rows=[]; };
