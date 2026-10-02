@@ -230,12 +230,12 @@ function materialize(){ // прошедшие даты регулярных пл
 document.addEventListener('keydown',e=>{ if(e.target.type==='number'&&(e.key==='ArrowUp'||e.key==='ArrowDown')) e.preventDefault(); });
 document.addEventListener('wheel',e=>{ if(e.target.type==='number'&&document.activeElement===e.target) e.target.blur(); },{passive:true});
 function render(){
-  const app=$('#app'); app.innerHTML=''; if(store.state) materialize();
-  const tabs=[['now','Сейчас'],['pay','Платежи'],['cal','Календарь'],['bal','Балансы'],['debt','Долги'],['goal','Цели'],['acc','Счета'],['set','Настройки']];
+  const app=$('#app'); app.innerHTML=''; if(store.state){ materialize(); syncSalary(); }
+  const tabs=[['now','Сейчас'],['pay','Платежи'],['sal','ЗП'],['cal','Календарь'],['bal','Балансы'],['debt','Долги'],['goal','Цели'],['acc','Счета'],['set','Настройки']];
   app.append(el('div',{class:'top'},el('div',{class:'bar'},el('a',{href:'../../',class:'muted small'},'← Проекты'),el('h1',{},'Планер бюджета'),el('span',{id:'status',class:'status'},store.status),el('div',{class:'seg'},['RUB','USD'].map(c=>el('button',{class:disp===c?'on':'',onclick:()=>{ disp=c; try{ localStorage.setItem('budget_disp',c); }catch(e){} render(); }},c==='RUB'?'₽':'$')))),
     el('div',{class:'tabs'},tabs.map(([k,n])=>el('button',{class:'tab'+(tab===k?' on':''),onclick:()=>{tab=k;render();}},n)))));
   const w=el('div',{class:'wrap'+(tab==='pay'?' wide':'')}); app.append(w);
-  ({now:vNow,pay:vPay,cal:vCal,bal:vBal,debt:vDebt,goal:vGoal,acc:vAcc,set:vSet})[tab](w);
+  ({now:vNow,pay:vPay,sal:vSal,cal:vCal,bal:vBal,debt:vDebt,goal:vGoal,acc:vAcc,set:vSet})[tab](w);
 }
 function kpi(l,v,s,cls){ return el('div',{class:'card kpi'},el('div',{class:'l'},l),el('div',{class:'v '+(cls||'')},v),s?el('div',{class:'s'},s):null); }
 function occRow(o,onchange){
@@ -369,8 +369,8 @@ function vPay(w){
     const dt=el('input',{type:'date',class:'inline date',value:d||'',min:stype(x)==='once'?null:today}); dt.onchange=chg(v=>{ if(v&&v.slice(0,4)<'1900') return; setPayDate(x,v); }); dt.onblur=()=>{ const cur=dateOf(x)||''; if(dt.value!==cur) dt.value=cur; };
     const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
-    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
-      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico mand'+(x.mandatory?' on':''),title:x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным',onclick:e=>{ x.mandatory=!x.mandatory; e.currentTarget.classList.toggle('on',!!x.mandatory); e.currentTarget.textContent=x.mandatory?'☑':'☐'; e.currentTarget.title=x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным'; refresh(); }},x.mandatory?'☑':'☐'),el('button',{class:'ico',title:'Сделать копию',onclick:()=>{ const cp=JSON.parse(JSON.stringify(x)); cp.id=rid('p_'); cp.fromId=null; cp.name=x.name+' (копия)'; cp.order=(x.order||0)+0.5; S().payments.push(cp); let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(z=>z.order=++n); touch(); render(); }},'⧉'),
+    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.salKey?el('div',{class:'small muted'},'из вкладки ЗП, сумма net'):x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
+      el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico mand'+(x.mandatory?' on':''),title:x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным',onclick:e=>{ x.mandatory=!x.mandatory; e.currentTarget.classList.toggle('on',!!x.mandatory); e.currentTarget.textContent=x.mandatory?'☑':'☐'; e.currentTarget.title=x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным'; refresh(); }},x.mandatory?'☑':'☐'),el('button',{class:'ico',title:'Сделать копию',onclick:()=>{ const cp=JSON.parse(JSON.stringify(x)); cp.id=rid('p_'); cp.fromId=null; delete cp.salKey; cp.name=x.name+' (копия)'; cp.order=(x.order||0)+0.5; S().payments.push(cp); let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(z=>z.order=++n); touch(); render(); }},'⧉'),
         el('button',{class:'ico danger',title:'Удалить',onclick:()=>{ if(confirm('Удалить «'+x.name+'»?')){ S().payments=S().payments.filter(z=>z.id!==x.id); touch(); render(); } }},'✕'),
         el('button',{class:'ico',title:'Остальные поля',onclick:()=>editPayment(x)},'…')));
     return tr; };
@@ -405,6 +405,66 @@ function editPayment(p){
     chk('Обязательный','mandatory'),inp('Заметка','note'));
   modal(isNew?'Новый платёж':'Платёж',f,[isNew?null:el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить платёж?')){ S().payments=S().payments.filter(x=>x.id!==p.id); touch(); closeModal(); render(); } }},'Удалить'),
     el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; if(p.schedule.type!=='once'&&p.schedule.start&&p.schedule.start<todayISO()) setPayDate(p,p.schedule.start); const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0) S().payments[i]=p; else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
+}
+// --- ЗП ---
+const SAL_DEF={on:false,gross:700000,advPct:50,bonusPct:50,start:'2026-10-15',advDay:15,payDay:30,bonusMonth:12,bonusDay:30,firstBonus:true,nonRes:false,category:null};
+const NDFL=[[2400000,.13],[5000000,.15],[20000000,.18],[50000000,.20],[Infinity,.22]]; // шкала с 2025 года: ставка на часть дохода сверх порога, доход считается нарастающим итогом с начала года
+function ndfl(base){ let t=0,prev=0; for(const [lim,r] of NDFL){ if(base<=prev) break; t+=(Math.min(base,lim)-prev)*r; prev=lim; } return t; }
+const HOLI=['01-01','01-02','01-03','01-04','01-05','01-06','01-07','01-08','02-23','03-08','05-01','05-09','06-12','11-04'];
+const ymd=(y,m,d)=>y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+function workdays(y,m,from,to){ let n=0; for(let d=from;d<=to;d++){ const wd=new Date(y,m-1,d).getDay(); if(wd!==0&&wd!==6&&!HOLI.includes(ymd(y,m,d).slice(5))) n++; } return n; }
+function payDate(y,m,day){ let d=Math.min(day,lastDay(y,m)); const wd=new Date(y,m-1,d).getDay(); if(wd===6) d-=1; else if(wd===0) d-=2; return ymd(y,m,Math.max(1,d)); } // выплата в выходной переносится на пятницу
+function salCat(cfg){ return cfg.category||(S().categories.find(c=>c.scope==='personal'&&c.name==='Зарплата')||{}).id||null; }
+function salaryPlan(cfg,endYear){ // все выплаты с даты выхода по конец endYear: gross, удержанный НДФЛ, net
+  const out=[]; const g=+cfg.gross||0; if(!cfg.start||!g) return out; const [sy,sm,sd]=cfg.start.split('-').map(Number);
+  for(let y=sy;y<=endYear;y++){ let accr=0; const rows=[];
+    for(let m=(y===sy?sm:1);m<=12;m++){ const ld=lastDay(y,m), k=ymd(y,m,1).slice(0,7); let adv, tot;
+      if(y===sy&&m===sm&&sd>1){ const wd=workdays(y,m,1,ld)||1; tot=Math.round(g*workdays(y,m,sd,ld)/wd); adv=sd<(cfg.advDay||15)?Math.round(g*workdays(y,m,sd,Math.min(cfg.advDay||15,ld))/wd):0; } // неполный первый месяц: по рабочим дням
+      else { tot=g; adv=Math.round(g*(cfg.advPct||0)/100); }
+      accr+=tot;
+      if(adv>0) rows.push({key:k+':adv',date:payDate(y,m,cfg.advDay||15),name:'ЗП аванс, '+fmtM(k),gross:adv,ord:0});
+      rows.push({key:k+':fin',date:payDate(y,m,cfg.payDay||31),name:'ЗП, '+fmtM(k),gross:tot-adv,ord:1}); }
+    if(cfg.bonusPct>0&&(y>sy||cfg.firstBonus!==false)){ const bd=payDate(y,cfg.bonusMonth||12,cfg.bonusDay||30); if(bd>=cfg.start) rows.push({key:y+':bonus',date:bd,name:'Бонус за '+y,gross:Math.round(accr*cfg.bonusPct/100),ord:2}); }
+    rows.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.ord-b.ord);
+    let cum=0,paid=0; for(const r of rows){ cum+=r.gross; const tax=(y===sy&&cfg.nonRes?Math.round(cum*.3):Math.round(ndfl(cum)))-paid; paid+=tax; r.tax=tax; r.net=r.gross-tax; r.cum=cum; r.year=y; out.push(r); } }
+  return out;
+}
+function syncSalary(){ // будущие выплаты из вкладки ЗП живут в Платежах разовыми строками с salKey; прошедшие строки не трогаются
+  const cfg=S().settings.salary; if(!cfg) return; const today=todayISO();
+  const hz=addMonths(today,S().settings.forecastMonths||6); const to=ymd(+hz.slice(0,4),+hz.slice(5,7),lastDay(+hz.slice(0,4),+hz.slice(5,7)));
+  const plan=cfg.on?salaryPlan(cfg,+to.slice(0,4)).filter(r=>r.date>=today&&r.date<=to):[];
+  const byKey={}; for(const r of plan) byKey[r.key]=r; let changed=false;
+  const isFut=p=>((p.schedule||{}).date||'')>=today;
+  const keep=S().payments.filter(p=>!(p.salKey&&isFut(p)&&!byKey[p.salKey])); if(keep.length!==S().payments.length){ S().payments=keep; changed=true; }
+  const cat=salCat(cfg);
+  for(const r of plan){ let p=S().payments.find(x=>x.salKey===r.key); if(p&&!isFut(p)) continue;
+    if(!p){ p={id:rid('p_'),kind:'income',scope:'personal',currency:'RUB',accountId:null,debtId:null,schedule:{type:'once',date:r.date},mandatory:true,active:true,note:'',salKey:r.key,order:Math.max(0,...S().payments.map(x=>x.order||0))+1}; S().payments.push(p); changed=true; }
+    if(p.name!==r.name||p.amount!==r.net||p.schedule.date!==r.date||p.category!==cat){ p.name=r.name; p.amount=r.net; p.schedule.date=r.date; p.category=cat; changed=true; } }
+  if(changed) touch();
+}
+function vSal(w){
+  const st=S().settings; const cfg=st.salary||(st.salary={...SAL_DEF}); const today=todayISO(); const out=el('div');
+  const upd=()=>{ touch(); syncSalary(); draw(); };
+  const num=(label,key)=>{ const i=el('input',{type:'number',inputmode:'decimal',value:cfg[key]==null?'':cfg[key]}); i.oninput=()=>{ cfg[key]=parseFloat(i.value)||0; upd(); }; return el('label',{class:'f'},el('span',{},label),i); };
+  const sd=el('input',{type:'date',value:cfg.start||''}); sd.onchange=()=>{ if(sd.value&&sd.value.slice(0,4)<'2000') return; cfg.start=sd.value||null; upd(); };
+  const bm=el('select',{},MONTHS.map((n,i)=>el('option',{value:i+1,selected:(cfg.bonusMonth||12)===i+1?'':null},n))); bm.onchange=()=>{ cfg.bonusMonth=+bm.value; upd(); };
+  const cs=el('select',{},S().categories.filter(c=>c.scope==='personal').map(c=>el('option',{value:c.id,selected:salCat(cfg)===c.id?'':null},c.name))); cs.onchange=()=>{ cfg.category=cs.value||null; upd(); };
+  const chk=(label,key)=>{ const i=el('input',{type:'checkbox',style:'width:auto'}); i.checked=!!cfg[key]; i.onchange=()=>{ cfg[key]=i.checked; upd(); }; return el('label',{class:'row',style:'margin:6px 0'},i,' ',label); };
+  w.append(el('div',{class:'card'},el('h2',{},'Параметры'),el('div',{class:'grid'},num('Оклад gross в месяц, ₽','gross'),num('Аванс, % оклада','advPct'),num('Бонус, % зарплаты за год','bonusPct'),el('label',{class:'f'},el('span',{},'Дата выхода'),sd),num('День аванса','advDay'),num('День зарплаты (31 = последний)','payDay'),num('Бонус: день','bonusDay'),el('label',{class:'f'},el('span',{},'Бонус: месяц'),bm),el('label',{class:'f'},el('span',{},'Категория в платежах'),cs)),
+    chk('Бонус за неполный первый год (от начисленной за год зарплаты)','firstBonus'),chk('В год выхода нерезидент РФ: НДФЛ 30% без шкалы','nonRes'),el('label',{class:'row',style:'margin:6px 0;font-weight:600'},(()=>{ const i=el('input',{type:'checkbox',style:'width:auto'}); i.checked=!!cfg.on; i.onchange=()=>{ cfg.on=i.checked; upd(); }; return i; })(),' Подставлять выплаты в платежи и прогнозы')),out);
+  const draw=()=>{ out.innerHTML=''; const sy=cfg.start?+cfg.start.slice(0,4):+today.slice(0,4); const plan=salaryPlan(cfg,Math.max(sy,+today.slice(0,4))+1);
+    if(!plan.length){ out.append(el('div',{class:'card empty'},'заполни оклад и дату выхода')); return; }
+    const cat=salCat(cfg); const old=S().payments.filter(p=>!p.salKey&&p.kind==='income'&&p.active!==false&&p.category===cat&&nextDate(p,today));
+    if(cfg.on&&old.length) out.append(el('div',{class:'card'},el('div',{class:'warn',style:'font-weight:600'},'В платежах остались ручные строки зарплаты, они задваивают доход'),el('div',{class:'small muted',style:'margin:6px 0'},old.map(p=>p.name+' ('+money(p.amount,p.currency)+', '+schedText(p)+')').join(' · ')),el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить ручные строки зарплаты: '+old.length+'?')){ const ids=old.map(p=>p.id); S().payments=S().payments.filter(p=>!ids.includes(p.id)); touch(); draw(); } }},'Удалить эти строки')));
+    const years=uniq(plan.map(r=>r.year)); const tot=y=>plan.filter(r=>r.year===y).reduce((a,r)=>({g:a.g+r.gross,t:a.t+r.tax,n:a.n+r.net}),{g:0,t:0,n:0});
+    const pct=(t,g)=>g?nf2.format(Math.round(t/g*1000)/10)+'%':'';
+    out.append(el('div',{class:'grid',style:'margin-bottom:12px'},years.map(y=>{ const s=tot(y); return kpi('Net за '+y,rub(s.n),'gross '+rub(s.g)+' · НДФЛ '+rub(s.t)+' ('+pct(s.t,s.g)+')','pos'); })));
+    const inPay={}; for(const p of S().payments) if(p.salKey) inPay[p.salKey]=1;
+    const tb=el('tbody'); for(const y of years){ for(const r of plan.filter(r=>r.year===y)) tb.append(el('tr',{class:r.date<today?'dim':''},el('td',{},fmtD(r.date)),el('td',{},r.name,inPay[r.key]?el('span',{class:'chip blue',style:'margin-left:6px'},'в платежах'):null),el('td',{class:'n'},nf.format(D(r.gross))),el('td',{class:'n'},nf.format(D(r.tax))),el('td',{class:'n muted'},pct(r.tax,r.gross)),el('td',{class:'n pos'},nf.format(D(r.net))),el('td',{class:'n muted'},nf.format(D(r.cum)))));
+      const s=tot(y); tb.append(el('tr',{},el('td'),el('td',{},el('strong',{},'Итого '+y)),el('td',{class:'n'},el('strong',{},nf.format(D(s.g)))),el('td',{class:'n'},el('strong',{},nf.format(D(s.t)))),el('td',{class:'n muted'},pct(s.t,s.g)),el('td',{class:'n pos'},el('strong',{},nf.format(D(s.n)))),el('td'))); }
+    out.append(el('div',{class:'card'},el('h2',{},'Выплаты, '+sym()),el('div',{class:'tscroll'},el('table',{},el('thead',{},el('tr',{},el('th',{},'Дата'),el('th',{},'Выплата'),el('th',{class:'n'},'Gross'),el('th',{class:'n'},'НДФЛ'),el('th',{class:'n'},'Ставка'),el('th',{class:'n'},'Net'),el('th',{class:'n'},'Доход с начала года'))),tb)),
+      el('div',{class:'hint'},'НДФЛ удерживается с каждой выплаты по шкале от дохода нарастающим итогом с 1 января: 13% до 2,4 млн, 15% до 5 млн, 18% до 20 млн, 20% до 50 млн, 22% выше. Повышенная ставка действует только на часть сверх порога; доход считается по дате выплаты, поэтому бонус в декабре добирает шкалу этого же года. Неполный первый месяц считается по рабочим дням, выплата в выходной переносится на пятницу, бонус = процент от зарплаты, начисленной за календарный год. Доходы у других работодателей и вычеты не учитываются. В платежи попадают будущие выплаты в пределах горизонта прогноза ('+(st.forecastMonths||6)+' мес), прошедшие строки остаются как были.'))); };
+  draw();
 }
 // --- Календарь ---
 function vCal(w){
