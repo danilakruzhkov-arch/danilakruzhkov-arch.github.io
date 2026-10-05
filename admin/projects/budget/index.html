@@ -56,7 +56,7 @@
   select.inline { width:auto; padding:6px 8px; font-size:13px; } select.inline.sm { max-width:130px; }
   button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); } input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; } input[type=number] { -moz-appearance:textfield; appearance:textfield; } button.ico.mand { font-size:14px; color:var(--muted); } button.ico.mand.on { color:var(--ink); }
   table.pay { width:100%; } table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); } table.pay td.grow { width:40%; } table.pay td.grow input { width:100%; min-width:140px; } table.pay tr.done { opacity:.45; }
-  select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } table.sum tr.bold td { font-weight:700; } table.sum td:first-child { white-space:nowrap; } .blue { color:var(--blue); }
+  select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } tr.bold td { font-weight:700; } table.sum td:first-child { white-space:nowrap; } .blue { color:var(--blue); }
   label.f { display:block; margin-bottom:10px; }
   label.f span { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
   .f2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -238,16 +238,46 @@ function render(){
   ({now:vNow,pay:vPay,sal:vSal,cal:vCal,bal:vBal,debt:vDebt,goal:vGoal,acc:vAcc,set:vSet})[tab](w);
 }
 function kpi(l,v,s,cls){ return el('div',{class:'card kpi'},el('div',{class:'l'},l),el('div',{class:'v '+(cls||'')},v),s?el('div',{class:'s'},s):null); }
-function occRow(o,onchange){
-  const chip=o.status==='confirmed'?el('span',{class:'chip ok'},'проведён'):o.status==='auto'?el('span',{class:'chip blue'},'авто'):o.status==='skipped'?el('span',{class:'chip bad'},'пропущен, висит'):o.status==='cancelled'?el('span',{class:'chip'},'отменён'):el('span',{class:'chip'},'план');
+function occChip(o){ return o.status==='confirmed'?el('span',{class:'chip ok'},'проведён'):o.status==='auto'?el('span',{class:'chip blue'},'авто'):o.status==='skipped'?el('span',{class:'chip bad'},'пропущен, висит'):o.status==='cancelled'?el('span',{class:'chip'},'отменён'):el('span',{class:'chip'},'план'); }
+function occActs(o,onchange){
   const setSt=st=>{ const k=o.key; if(st==null) delete S().postings[k]; else S().postings[k]={...(S().postings[k]||{}),status:st}; touch(); onchange&&onchange(); };
   const acts=el('div',{class:'acts'});
   if(o.status!=='confirmed') acts.append(el('button',{class:'sm',title:'Подтвердить',onclick:()=>setSt('confirmed')},'✓'));
   if(o.status!=='skipped'&&o.kind==='expense') acts.append(el('button',{class:'sm',title:'Пропущен, висит',onclick:()=>setSt('skipped')},'⏸'));
   if(o.status!=='cancelled') acts.append(el('button',{class:'sm',title:'Отменить в этом месяце',onclick:()=>setSt('cancelled')},'✕'));
   if(S().postings[o.key]) acts.append(el('button',{class:'sm',title:'Сбросить',onclick:()=>setSt(null)},'↺'));
+  return acts;
+}
+function occRow(o,onchange){
+  const chip=occChip(o);
+  const acts=occActs(o,onchange);
   return el('div',{class:'occ'},el('div',{class:'nm'},el('div',{},o.name,' ',chip),el('div',{class:'sub'},fmtD(o.date),o.category?' · '+catName(o.category):'',o.scope==='clippoint'?' · ClipPoint':'')),
     el('div',{class:'amt '+(o.kind==='income'?'pos':'')},(o.kind==='income'?'+':'−')+money(o.amount,o.currency),o.currency!=='RUB'?el('div',{class:'small muted'},'≈ '+rub(o.rub)):null),acts);
+}
+// --- прогноз остатка по дням: все валюты (в валюте отображения) или одна валюта в её единицах ---
+let fcCur='all'; try{ fcCur=localStorage.getItem('budget_fccur')||'all'; }catch(e){}
+function snapByCur(sn){ const b={}; for(const [aid,v] of Object.entries(sn&&sn.balances||{})){ const a=accById(aid); if(a&&v!=null&&!isDebtAcc(a)) b[a.currency]=(b[a.currency]||0)+v; } return b; } // остатки по снимку в единицах хранения
+function usedCurs(c){ const b=snapByCur(c.last); const set=new Set(Object.keys(b).filter(k=>b[k])); for(const p of S().payments) if(p.active!==false) set.add(p.currency); return CURS.filter(x=>set.has(x)).sort((x,y)=>toB(b[y]||0,y)-toB(b[x]||0,x)); }
+function balSeries(c,cur){ if(cur==='all') return c.series;
+  const sg=o=>(o.kind==='income'?1:-1)*o.amount; let bal=snapByCur(c.last)[cur]||0;
+  for(const o of c.occ) if(o.date<=c.today&&o.currency===cur&&(o.status==='auto'||o.status==='confirmed')) bal+=sg(o);
+  const byDay={}; for(const o of c.future) if(o.currency===cur) byDay[o.date]=(byDay[o.date]||0)+sg(o);
+  const series=[{date:c.today,bal}]; const end=c.series[c.series.length-1].date;
+  for(let d=addDays(c.today,1); d<=end; d=addDays(d,1)){ bal+=byDay[d]||0; series.push({date:d,bal}); } return series; }
+function forecastCard(c,collapsible){
+  let hid=false; if(collapsible){ try{ hid=!!localStorage.getItem('budget_fchidden'); }catch(e){} }
+  const card=el('div',{class:'card'}); const h2=el('h2',{},'Прогноз остатка');
+  const tg=collapsible?el('button',{class:'ico',onclick:()=>{ try{ if(hid) localStorage.removeItem('budget_fchidden'); else localStorage.setItem('budget_fchidden','1'); }catch(e){} render(); }},hid?'показать':'свернуть'):null;
+  if(hid){ card.append(el('div',{class:'row between'},h2,tg)); return card; }
+  const curs=usedCurs(c); if(fcCur!=='all'&&!curs.includes(fcCur)) fcCur='all';
+  const seg=el('div',{class:'seg',style:'flex-wrap:wrap'}); for(const [k,n] of [['all','все'],...curs.map(x=>[x,curLabel(x)])]) seg.append(el('button',{class:fcCur===k?'on':'',onclick:()=>{ fcCur=k; try{ localStorage.setItem('budget_fccur',k); }catch(e){} render(); }},n));
+  card.append(el('div',{class:'row between'},h2,el('div',{class:'row'},seg,tg)));
+  const cv=el('canvas'); card.append(cv); const ser=balSeries(c,fcCur); const mn=ser.reduce((m,s)=>s.bal<m.bal?s:m,ser[0]);
+  const fmt=v=>fcCur==='all'?rub(v):money(v,fcCur);
+  card.append(el('div',{class:'hint'},'Минимум '+fmt(mn.bal)+' '+fmtD(mn.date)+(fcCur==='all'?'. Все валюты по курсам из настроек':'. Только остатки и платежи в '+fcCur+', без конвертации')+'. Горизонт '+(S().settings.forecastMonths||6)+' мес.'));
+  setTimeout(()=>{ const labels=ser.map(s=>s.date); if(charts.fc) charts.fc.destroy(); charts.fc=new Chart(cv,{type:'line',data:{labels,datasets:[{data:ser.map(s=>Math.round(fcCur==='all'?s.bal:s.bal*100)/(fcCur==='all'?1:100)),borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),borderWidth:2,pointRadius:0,fill:{target:'origin',above:'rgba(30,142,62,.08)',below:'rgba(217,48,37,.12)'},tension:.05}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(labels[i[0].dataIndex]),label:i=>fmt(i.raw)}}},scales:{x:{ticks:{maxTicksLimit:7,callback:(v,i)=>fmtD(labels[i])},grid:{display:false}},y:{ticks:{callback:v=>fcCur==='all'?nf.format(D(v)/1000)+'k':nf.format(v)}}}}}); },0);
+  return card;
 }
 // --- Сейчас ---
 function vNow(w){
@@ -261,16 +291,29 @@ function vNow(w){
   if(c.last){ const byCur={}; for(const [aid,v] of Object.entries(c.last.balances||{})){ const a=accById(aid); if(!a||v==null||isDebtAcc(a)) continue; byCur[a.currency]=(byCur[a.currency]||0)+v; }
     const rows=Object.entries(byCur).filter(([k,v])=>v).map(([k,v])=>({cur:k,v,rub:toB(v,k)})).sort((a,b)=>b.rub-a.rub);
     w.append(el('div',{class:'card'},el('h2',{},'Деньги по валютам'),el('table',{},el('tbody',{},rows.map(r=>el('tr',{},el('td',{},r.cur,UNIT[r.cur]?el('span',{class:'small muted'},' тыс.'):null),el('td',{class:'n'},nf2.format(r.v)),el('td',{class:'n muted'},'≈ '+rub(r.rub)))),el('tr',{},el('td',{},el('strong',{},'Итого')),el('td'),el('td',{class:'n'},el('strong',{},rub(c.cashAtSnap)))))),el('div',{class:'hint'},'По снимку от '+fmtD(c.last.date)+', без кредитов и кредиток. Курсы из настроек.'))); }
-  const cv=el('canvas',{id:'fc'}); w.append(el('div',{class:'card'},el('h2',{},'Прогноз остатка'),cv));
-  setTimeout(()=>{ const labels=c.series.map(s=>s.date); new Chart(cv,{type:'line',data:{labels,datasets:[{data:c.series.map(s=>Math.round(s.bal)),borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),borderWidth:2,pointRadius:0,fill:{target:'origin',above:'rgba(30,142,62,.08)',below:'rgba(217,48,37,.12)'},tension:.05}]},
-    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(labels[i[0].dataIndex]),label:i=>rub(i.raw)}}},scales:{x:{ticks:{maxTicksLimit:7,callback:(v,i)=>fmtD(labels[i])},grid:{display:false}},y:{ticks:{callback:v=>nf.format(D(v)/1000)+'k'}}}}}); },0);
+  w.append(forecastCard(c,false));
   const mk=Object.keys(c.months).sort().filter(k=>k>=mkey(c.today));
   w.append(el('div',{class:'card'},el('h2',{},'По месяцам'),el('div',{class:'tscroll'},el('table',{},el('thead',{},el('tr',{},el('th',{},'Месяц'),el('th',{class:'n'},'Доходы, '+sym()),el('th',{class:'n'},'Расходы, '+sym()),el('th',{class:'n'},'Итог'),el('th',{class:'n'},'На конец'))),
     el('tbody',{},mk.map(k=>{ const m=c.months[k]; return el('tr',{},el('td',{},fmtM(k)),el('td',{class:'n pos'},nf.format(D(m.inc))),el('td',{class:'n'},nf.format(D(m.exp))),el('td',{class:'n '+(m.inc-m.exp<0?'neg':'pos')},sign(D(m.inc-m.exp))),el('td',{class:'n '+(m.end<0?'neg':'')},nf.format(D(m.end)))); })))),
     el('div',{class:'hint'},'«На конец» считается от последнего снимка через все проведённые и плановые платежи. Прочие траты между снимками в прогноз не входят, пока не заведены отдельной строкой в «Жизнь».')));
   if(c.due.length){ const d=el('div',{class:'card'},el('h2',{},'Висит, нужно провести')); c.due.forEach(o=>d.append(occRow(o,render))); w.append(d); }
-  const up=el('div',{class:'card'},el('h2',{},'Ближайшие 14 дней'));
-  const soon=c.occ.filter(o=>o.date>=c.today&&o.date<=addDays(c.today,14)&&o.status!=='cancelled'); if(!soon.length) up.append(el('div',{class:'empty'},'ничего')); soon.forEach(o=>up.append(occRow(o,render))); w.append(up);
+  w.append(runCard(c));
+}
+function runCard(c){ // платежи с последнего снимка по +14 дней с остатками после каждого: итого, две главные валюты, прочее
+  const from=c.last?addDays(c.last.date,1):c.today, to=addDays(c.today,14);
+  const rows=c.occ.filter(o=>o.date>=from&&o.date<=to); const bal=snapByCur(c.last); const curs=usedCurs(c); const main=curs.filter(x=>bal[x]).slice(0,2); const other=()=>Object.keys(bal).filter(x=>!main.includes(x)).reduce((t,x)=>t+toB(bal[x],x),0); const total=()=>Object.keys(bal).reduce((t,x)=>t+toB(bal[x],x),0);
+  const cell=(v,cur)=>el('td',{class:'n small'+(v<0?' neg':'')},cur?nf.format(Math.round(v*100)/100):nf.format(Math.round(D(v))));
+  const balCells=()=>[cell(total()),...main.map(x=>cell(bal[x]||0,x)),cell(other())];
+  const t=el('table',{},el('thead',{},el('tr',{},el('th',{},'Дата'),el('th',{},'Платёж'),el('th',{class:'n'},'Сумма'),el('th',{class:'n'},'Итого, '+sym()),...main.map(x=>el('th',{class:'n'},curLabel(x))),el('th',{class:'n'},'Прочее, '+sym()),el('th'))));
+  const tb=el('tbody'); t.append(tb);
+  tb.append(el('tr',{class:'bold'},el('td',{},c.last?fmtD(c.last.date):'—'),el('td',{},c.last?'снимок остатков':'снимка нет'),el('td'),...balCells(),el('td')));
+  let todayShown=false;
+  for(const o of rows){ if(!todayShown&&o.date>c.today){ todayShown=true; tb.append(el('tr',{class:'bold'},el('td',{},fmtD(c.today)),el('td',{},'сегодня'),el('td'),...balCells(),el('td'))); }
+    const applies=o.status==='confirmed'||o.status==='auto'||o.status==='planned'; if(applies) bal[o.currency]=(bal[o.currency]||0)+(o.kind==='income'?1:-1)*o.amount;
+    tb.append(el('tr',{class:o.status==='cancelled'||o.status==='skipped'?'dim':''},el('td',{class:'small muted',style:'white-space:nowrap'},fmtD(o.date)),el('td',{},o.name,' ',occChip(o),el('div',{class:'small muted'},(o.category?catName(o.category):'')+(o.scope==='clippoint'?' · ClipPoint':''))),
+      el('td',{class:'n '+(o.kind==='income'?'pos':''),style:'white-space:nowrap'},(o.kind==='income'?'+':'−')+money(o.amount,o.currency)),...(applies?balCells():[el('td',{class:'n small muted'},'—'),...main.map(()=>el('td')),el('td')]),el('td',{},occActs(o,render)))); }
+  if(!todayShown) tb.append(el('tr',{class:'bold'},el('td',{},fmtD(c.today)),el('td',{},'сегодня'),el('td'),...balCells(),el('td')));
+  return el('div',{class:'card'},el('h2',{},'С последнего снимка и 14 дней вперёд'),el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Остатки после каждого платежа от снимка: «Итого» по всем валютам по курсам, дальше две главные валюты в своих единицах, «Прочее» = остальные валюты. Отменённые и висящие остаток не меняют.'));
 }
 // --- Платежи ---
 function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,today,addMonths(today,13))[0]||null; }
@@ -321,7 +364,7 @@ function vPay(w){
     const hid=!!payFilter.sumHidden; const tg=el('button',{class:'ico',onclick:()=>{ payFilter.sumHidden=!payFilter.sumHidden; try{ localStorage.setItem('budget_sumhidden',payFilter.sumHidden?'1':''); }catch(e){} render(); }},hid?'показать':'свернуть');
     if(hid) return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg));
     return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели пн–вс ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). «Прошедшие» = с '+fmtD(pastP.from)+' (после последнего снимка) по вчера'+(pc.hang?', из них висит не оплаченных '+rub(pc.hang):'')+'. Долги и кредиты в колонках = остаток на конец периода.')); };
-  let sumCard=renderSummary(); w.append(sumCard);
+  let sumCard=renderSummary(); w.append(sumCard); w.append(forecastCard(c,true));
   // --- таблица
   let list=S().payments.filter(inScope); if(payFilter.past==='future') list=list.filter(x=>!isPast(x)); else if(payFilter.past==='noconf') list=list.filter(x=>!isConfPast(x)); else if(payFilter.past==='unconf') list=list.filter(x=>isPast(x)&&!isConfPast(x));
   const d0={}; for(const x of list) d0[x.id]=dateOf(x);
