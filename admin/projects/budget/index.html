@@ -180,6 +180,12 @@ function occurrences(from,to){
   out.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.kind==='income'?-1:1)); return out;
 }
 const signed=o=>(o.kind==='income'?1:-1)*o.rub;
+function hangOld(upto){ // «висит» с датой по upto включительно: снимок их не закрывает, обязательство остаётся до оплаты или отмены
+  const out=[]; for(const [k,post] of Object.entries(S().postings)){ if(post.status!=='skipped') continue; const [id,dt]=k.split('|'); if(dt>upto) continue; const p=S().payments.find(x=>x.id===id); if(!p||p.active===false) continue; const amt=post.amount!=null?post.amount:p.amount;
+    out.push({key:k,id,date:dt,name:p.name,kind:p.kind,scope:p.scope,category:p.category,amount:amt,currency:p.currency,rub:toB(amt,p.currency),status:'skipped',mandatory:p.mandatory,src:'payment',old:true}); }
+  return out.sort((a,b)=>a.date<b.date?-1:1); }
+function confirmOld(p,date){ // оплата висящего с датой до снимка: разовая строка переезжает на сегодня, чтобы вычесться из остатка после снимка
+  if(date<=lastSnapDate()&&(p.schedule||{}).type==='once'){ delete S().postings[p.id+'|'+date]; p.schedule.date=todayISO(); S().postings[p.id+'|'+p.schedule.date]={status:'confirmed'}; return true; } return false; }
 function snapTotal(sn){ let t=0; for(const [aid,v] of Object.entries(sn.balances||{})){ const a=accById(aid); if(a&&v!=null&&!isDebtAcc(a)) t+=toB(v,a.currency); } return t; } // деньги без кредитов
 function snapDebt(sn){ let t=0; for(const [aid,v] of Object.entries(sn.balances||{})){ const a=accById(aid); if(a&&v!=null&&isDebtAcc(a)&&v<0) t+=toB(-v,a.currency); } return t; } // долг по кредитам и кредиткам, положительное число
 function compute(){
@@ -188,7 +194,7 @@ function compute(){
   const cashAtSnap=last?snapTotal(last):0;
   const months=S().settings.forecastMonths||6; const horizonEnd=addMonths(today,months);
   const occ=occurrences(last?addDays(last.date,1):today,horizonEnd);
-  let posted=0, arrears=0; const due=[];
+  const old=last?hangOld(last.date):[]; let posted=0, arrears=0; const due=[...old]; for(const o of old) arrears+=o.rub;
   for(const o of occ){ if(o.date<=today){ if(o.status==='auto'||o.status==='confirmed') posted+=signed(o); else if(o.status==='skipped'){ arrears+=o.rub; due.push(o);} } }
   const cashNow=cashAtSnap+posted;
   // forecast by day
@@ -202,7 +208,7 @@ function compute(){
   const nextInc=future.find(o=>o.kind==='income'); let free=cashNow-arrears; for(const o of future){ if(nextInc&&o.date>=nextInc.date) break; if(o.kind==='expense') free-=o.rub; }
   const debts=S().debts.filter(d=>d.dir!=='owed').map(d=>({...d,remaining:debtRemaining(d,today),remRub:toB(debtRemaining(d,today),d.currency)})); // «мне должны» в итоги не входят
   const debtTotal=debts.reduce((s,d)=>s+d.remRub,0); const credDebt=last?snapDebt(last):0;
-  return {today,last,cashAtSnap,cashNow,posted,arrears,due,series,min,borrow:Math.max(0,-min.bal),months:mt,nextInc,free,debts,debtTotal,credDebt,net:cashNow-debtTotal-credDebt,occ,future};
+  return {today,last,cashAtSnap,cashNow,posted,arrears,due,hangOld:old,series,min,borrow:Math.max(0,-min.bal),months:mt,nextInc,free,debts,debtTotal,credDebt,net:cashNow-debtTotal-credDebt,occ,future};
 }
 function otherSpend(){ // между снимками: ожидалось − факт
   const snaps=[...S().snapshots].sort((a,b)=>a.date<b.date?-1:1); const out=[];
@@ -240,7 +246,7 @@ function render(){
 function kpi(l,v,s,cls){ return el('div',{class:'card kpi'},el('div',{class:'l'},l),el('div',{class:'v '+(cls||'')},v),s?el('div',{class:'s'},s):null); }
 function occChip(o){ return o.status==='confirmed'?el('span',{class:'chip ok'},'проведён'):o.status==='auto'?el('span',{class:'chip blue'},'авто'):o.status==='skipped'?el('span',{class:'chip bad'},'пропущен, висит'):o.status==='cancelled'?el('span',{class:'chip'},'отменён'):el('span',{class:'chip'},'план'); }
 function occActs(o,onchange){
-  const setSt=st=>{ const k=o.key; if(st==null) delete S().postings[k]; else S().postings[k]={...(S().postings[k]||{}),status:st}; touch(); onchange&&onchange(); };
+  const setSt=st=>{ const k=o.key; const p=S().payments.find(x=>x.id===o.id); if(st==='confirmed'&&p&&confirmOld(p,o.date)){ touch(); onchange&&onchange(); return; } if(st==null) delete S().postings[k]; else S().postings[k]={...(S().postings[k]||{}),status:st}; touch(); onchange&&onchange(); };
   const acts=el('div',{class:'acts'});
   if(o.status!=='confirmed') acts.append(el('button',{class:'sm',title:'Подтвердить',onclick:()=>setSt('confirmed')},'✓'));
   if(o.status!=='skipped'&&o.kind==='expense') acts.append(el('button',{class:'sm',title:'Пропущен, висит',onclick:()=>setSt('skipped')},'⏸'));
@@ -261,6 +267,7 @@ function usedCurs(c){ const b=snapByCur(c.last); const set=new Set(Object.keys(b
 function balSeries(c,cur){ if(cur==='all') return c.series;
   const sg=o=>(o.kind==='income'?1:-1)*o.amount; let bal=snapByCur(c.last)[cur]||0;
   for(const o of c.occ) if(o.date<=c.today&&o.currency===cur&&(o.status==='auto'||o.status==='confirmed')) bal+=sg(o);
+  for(const o of [...c.hangOld,...c.occ.filter(o=>o.date<=c.today&&o.status==='skipped')]) if(o.currency===cur) bal-=o.amount; // висящие = обязательства
   const byDay={}; for(const o of c.future) if(o.currency===cur) byDay[o.date]=(byDay[o.date]||0)+sg(o);
   const series=[{date:c.today,bal}]; const end=c.series[c.series.length-1].date;
   for(let d=addDays(c.today,1); d<=end; d=addDays(d,1)){ bal+=byDay[d]||0; series.push({date:d,bal}); } return series; }
@@ -301,7 +308,7 @@ function vNow(w){
 }
 function runCard(c,to,title){ // платежи с последнего снимка по дату to с остатками после каждого: итого, две главные валюты, прочее
   const from=c.last?addDays(c.last.date,1):c.today;
-  const rows=c.occ.filter(o=>o.date>=from&&o.date<=to); const bal=snapByCur(c.last); const curs=usedCurs(c); const main=curs.filter(x=>bal[x]).slice(0,2); const other=()=>Object.keys(bal).filter(x=>!main.includes(x)).reduce((t,x)=>t+toB(bal[x],x),0); const total=()=>Object.keys(bal).reduce((t,x)=>t+toB(bal[x],x),0);
+  const rows=[...c.hangOld,...c.occ.filter(o=>o.date>=from&&o.date<=to)]; const bal=snapByCur(c.last); const curs=usedCurs(c); const main=curs.filter(x=>bal[x]).slice(0,2); const other=()=>Object.keys(bal).filter(x=>!main.includes(x)).reduce((t,x)=>t+toB(bal[x],x),0); const total=()=>Object.keys(bal).reduce((t,x)=>t+toB(bal[x],x),0);
   const cell=(v,cur,hot)=>el('td',{class:'n small'+(v<0?' neg':'')+(hot==null?'':hot?' hot':' dimc')},cur?nf.format(Math.round(v*100)/100):nf.format(Math.round(D(v))));
   const balCells=ch=>[cell(total(),null,ch?true:null),...main.map(x=>cell(bal[x]||0,x,ch?ch===x:null)),cell(other(),null,ch?!main.includes(ch):null)]; // ch = валюта платежа: её колонка выделена, остальные приглушены
   const t=el('table',{},el('thead',{},el('tr',{},el('th',{},'Дата'),el('th',{},'Платёж'),el('th',{class:'n'},'Сумма'),el('th',{class:'n'},'Итого, '+sym()),...main.map(x=>el('th',{class:'n'},curLabel(x))),el('th',{class:'n'},'Прочее, '+sym()),el('th'))));
@@ -309,11 +316,11 @@ function runCard(c,to,title){ // платежи с последнего сним
   tb.append(el('tr',{class:'bold'},el('td',{},c.last?fmtD(c.last.date):'—'),el('td',{},c.last?'снимок остатков':'снимка нет'),el('td'),...balCells(),el('td')));
   let todayShown=false;
   for(const o of rows){ if(!todayShown&&o.date>c.today){ todayShown=true; tb.append(el('tr',{class:'bold'},el('td',{},fmtD(c.today)),el('td',{},'сегодня'),el('td'),...balCells(),el('td'))); }
-    const applies=o.status==='confirmed'||o.status==='auto'||o.status==='planned'; if(applies) bal[o.currency]=(bal[o.currency]||0)+(o.kind==='income'?1:-1)*o.amount;
-    tb.append(el('tr',{class:o.status==='cancelled'||o.status==='skipped'?'dim':''},el('td',{class:'small muted',style:'white-space:nowrap'},fmtD(o.date)),el('td',{},o.name,' ',occChip(o),el('div',{class:'small muted'},(o.category?catName(o.category):'')+(o.scope==='clippoint'?' · ClipPoint':''))),
+    const applies=o.old||o.status==='confirmed'||o.status==='auto'||o.status==='planned'; if(applies) bal[o.currency]=(bal[o.currency]||0)+(o.kind==='income'?1:-1)*o.amount;
+    tb.append(el('tr',{class:!o.old&&(o.status==='cancelled'||o.status==='skipped')?'dim':''},el('td',{class:'small muted',style:'white-space:nowrap'},fmtD(o.date)),el('td',{},o.name,' ',o.old?el('span',{class:'chip bad'},'висит с прошлого периода'):occChip(o),el('div',{class:'small muted'},(o.category?catName(o.category):'')+(o.scope==='clippoint'?' · ClipPoint':''))),
       el('td',{class:'n '+(o.kind==='income'?'pos':''),style:'white-space:nowrap'},(o.kind==='income'?'+':'−')+money(o.amount,o.currency)),...(applies?balCells(o.currency):[el('td',{class:'n small muted'},'—'),...main.map(()=>el('td')),el('td')]),el('td',{},occActs(o,render)))); }
   if(!todayShown) tb.append(el('tr',{class:'bold'},el('td',{},fmtD(c.today)),el('td',{},'сегодня'),el('td'),...balCells(),el('td')));
-  return el('div',{class:'card'},el('h2',{},title),el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Остатки после каждого платежа от снимка: «Итого» по всем валютам по курсам, дальше две главные валюты в своих единицах, «Прочее» = остальные валюты. Отменённые и висящие остаток не меняют.'));
+  return el('div',{class:'card'},el('h2',{},title),el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Остатки после каждого платежа от снимка: «Итого» по всем валютам по курсам, дальше две главные валюты в своих единицах, «Прочее» = остальные валюты. Висящие с датой до снимка вычитаются сразу после него как обязательство; отменённые и висящие после снимка остаток не меняют.'));
 }
 // --- Платежи ---
 function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,today,addMonths(today,13))[0]||null; }
@@ -339,7 +346,7 @@ function vPay(w){
   const isDebtCat=x=>catName(x.category)==='Долги', isCredCat=x=>catName(x.category)==='Кредиты';
   const stype=x=>((x.schedule||{}).type)||'once'; const payById={}; for(const x of S().payments) payById[x.id]=x;
   const dateOf=x=>stype(x)==='once'?((x.schedule||{}).date||null):nextDate(x,today); // разовый: его дата (может быть в прошлом); регулярный: ближайшая
-  const isPast=x=>{ const d=dateOf(x); return !!d&&d<=today; }; const isConfPast=x=>isPast(x)&&postStatus(x.id,dateOf(x))==='confirmed'; // прошедшие = с датой по сегодня включительно, у них есть статус
+  const isPast=x=>{ const d=dateOf(x); return !!d&&d<=today; }; const isHang=x=>{ const d=dateOf(x); return !!d&&d<=today&&postStatus(x.id,d)==='skipped'; }; /* висящий не закрывается снимком */ const isConfPast=x=>isPast(x)&&postStatus(x.id,dateOf(x))==='confirmed'; // прошедшие = с датой по сегодня включительно, у них есть статус
   const sgn=x=>x.kind==='income'?1:-1;
   // --- периоды: эта неделя (пн-вс), следующая, этот месяц, +1, +2, когда-нибудь, прошедшие (после последнего снимка)
   const c=compute(); const dow=(new Date(today+'T00:00:00').getDay()+6)%7; const mon=addDays(today,-dow);
@@ -354,7 +361,7 @@ function vPay(w){
   const renderSummary=()=>{ const cols=periods.map(pp=>calc(pp.from,pp.to));
     const sc={inc:0,incMand:0,exp:0,expMand:0,expOnce:0,expReg:0,sav:0,debt:0,cred:0,hang:0};
     for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income'){ sc.inc+=v; if(x.mandatory) sc.incMand+=v; } else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else { sc.exp+=v; if(x.mandatory) sc.expMand+=v; if(stype(x)==='once') sc.expOnce+=v; else sc.expReg+=v; } }
-    sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc); const pc=calc(pastP.from,pastP.to); cols.push(pc);
+    sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc); const pc=calc(pastP.from,pastP.to); for(const o of hangOld(snapD)){ if(!inScope(o)) continue; pc.exp+=o.rub; pc.hang+=o.rub; if(o.mandatory) pc.expMand+=o.rub; pc.rest-=o.rub; } cols.push(pc);
     const ROWS=[['Доходы','inc','pos'],['— обязательные','incMand','muted'],['Расходы','exp',''],['— обязательные','expMand','muted'],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
     const sumT=el('table',{class:'sum'});
     cols.unshift(cols.pop()); // прошедшие первой колонкой
@@ -369,11 +376,11 @@ function vPay(w){
   let list=S().payments.filter(inScope); if(payFilter.past==='future') list=list.filter(x=>!isPast(x)); else if(payFilter.past==='noconf') list=list.filter(x=>!isConfPast(x)); else if(payFilter.past==='unconf') list=list.filter(x=>isPast(x)&&!isConfPast(x));
   const d0={}; for(const x of list) d0[x.id]=dateOf(x);
   const inRange=(d,a,b)=>!!d&&d>=a&&d<=b;
-  const PRED={all:()=>true,past:d=>!!d&&d<today&&d>snapD,w0:d=>inRange(d,periods[0].from,periods[0].to),w1:d=>inRange(d,periods[1].from,periods[1].to),m0:d=>inRange(d,periods[2].from,periods[2].to),m1:d=>inRange(d,periods[3].from,periods[3].to),m2:d=>inRange(d,periods[4].from,periods[4].to),later:d=>!!d&&d>periods[4].to,someday:d=>!d,archive:d=>!!d&&d<=snapD};
+  const PRED={all:()=>true,past:(d,x)=>!!d&&d<today&&(d>snapD||isHang(x)),w0:d=>inRange(d,periods[0].from,periods[0].to),w1:d=>inRange(d,periods[1].from,periods[1].to),m0:d=>inRange(d,periods[2].from,periods[2].to),m1:d=>inRange(d,periods[3].from,periods[3].to),m2:d=>inRange(d,periods[4].from,periods[4].to),later:d=>!!d&&d>periods[4].to,someday:d=>!d,archive:(d,x)=>!!d&&d<=snapD&&!isHang(x)};
   const BK=[['all','Все'],['past','Прошедшие'],['w0','Эта неделя'],['w1','След. неделя'],['m0','Этот месяц'],['m1','Следующий'],['m2','Через 2'],['later','Позже'],['someday','Когда-нибудь'],['archive','До снимка']];
-  const bkRow=el('div',{class:'row',style:'margin-bottom:8px;gap:6px;flex-wrap:wrap'}); for(const [k,n] of BK){ const cnt=list.filter(x=>PRED[k](d0[x.id])).length; if(k!=='all'&&!cnt) continue; bkRow.append(chip(payFilter.bucket===k,n+' '+cnt,()=>{payFilter.bucket=k;render();})); }
+  const bkRow=el('div',{class:'row',style:'margin-bottom:8px;gap:6px;flex-wrap:wrap'}); for(const [k,n] of BK){ const cnt=list.filter(x=>PRED[k](d0[x.id],x)).length; if(k!=='all'&&!cnt) continue; bkRow.append(chip(payFilter.bucket===k,n+' '+cnt,()=>{payFilter.bucket=k;render();})); }
   const sk0=payFilter.sort||'default'; bkRow.append(el('span',{class:'muted small',style:'margin-left:auto'},'порядок:'),chip(sk0==='default','базовый',()=>{payFilter.sort='default';payFilter.dir=1;render();}),chip(sk0==='order','свой',()=>{payFilter.sort='order';payFilter.dir=1;render();})); w.append(bkRow);
-  if(!PRED[payFilter.bucket]) payFilter.bucket='all'; list=list.filter(x=>PRED[payFilter.bucket](d0[x.id])); if(payFilter.bucket==='all') list=list.filter(x=>!PRED.archive(d0[x.id])); // старое до снимка только по чипу
+  if(!PRED[payFilter.bucket]) payFilter.bucket='all'; list=list.filter(x=>PRED[payFilter.bucket](d0[x.id],x)); if(payFilter.bucket==='all') list=list.filter(x=>!PRED.archive(d0[x.id],x)); // старое до снимка только по чипу
   const catCounts={}; for(const x of list){ const k=x.category||'none'; catCounts[k]=(catCounts[k]||0)+1; }
   const catRow=el('div',{class:'row',style:'margin-bottom:10px;gap:6px;flex-wrap:wrap'},chip(payFilter.cat==='all','Все категории',()=>{payFilter.cat='all';render();}));
   for(const ct of [...S().categories].sort((a,b)=>catSortKey(a.id)<catSortKey(b.id)?-1:1).filter(ct=>(payFilter.scope==='all'||ct.scope===payFilter.scope)&&catCounts[ct.id])) catRow.append(el('span',{class:'chip'+(payFilter.cat===ct.id?' blue':''),style:'cursor:pointer;background:'+(payFilter.cat===ct.id?'':catBg(ct.id)),onclick:()=>{payFilter.cat=ct.id;render();}},ct.name+' '+catCounts[ct.id]));
@@ -400,7 +407,7 @@ function vPay(w){
         cid?el('span',{},el('button',{class:'ico',onclick:()=>moveCat(cid,-1)},'▲'),el('button',{class:'ico',onclick:()=>moveCat(cid,1)},'▼')):null)))); return tr; };
   const STATUS=[['auto','прошёл, не отмечен'],['confirmed','оплачен'],['skipped','не оплачен, висит']];
   const row=(x)=>{ const d=d0[x.id]; const tr=el('tr',{style:'background:'+catBg(x.category),class:isConfPast(x)?'done':''}); const ap=el('td',{class:'n muted'},approx(x)); const note=el('div',{class:'small muted'},d?'':'когда-нибудь');
-    const stCell=el('td'); const renderSt=()=>{ stCell.innerHTML=''; const dd=dateOf(x); if(dd&&dd<=today){ const st=postStatus(x.id,dd); const sl=el('select',{class:'inline sm st-'+st},STATUS.map(([v,n])=>el('option',{value:v,selected:st===v?'':null},n))); sl.onchange=()=>{ if(sl.value==='auto') delete S().postings[x.id+'|'+dd]; else S().postings[x.id+'|'+dd]={status:sl.value}; refresh(); renderSt(); }; stCell.append(sl); } };
+    const stCell=el('td'); const renderSt=()=>{ stCell.innerHTML=''; const dd=dateOf(x); if(dd&&dd<=today){ const st=postStatus(x.id,dd); const sl=el('select',{class:'inline sm st-'+st},STATUS.map(([v,n])=>el('option',{value:v,selected:st===v?'':null},n))); sl.onchange=()=>{ if(sl.value==='confirmed'&&confirmOld(x,dd)){ touch(); render(); return; } if(sl.value==='auto') delete S().postings[x.id+'|'+dd]; else S().postings[x.id+'|'+dd]={status:sl.value}; refresh(); renderSt(); }; stCell.append(sl); } };
     // правка в строке без полной перерисовки, иначе теряется фокус в полях даты
     const refresh=()=>{ touch(); const n=renderSummary(); sumCard.replaceWith(n); sumCard=n; tr.classList.toggle('done',isConfPast(x)); ap.textContent=approx(x); note.textContent=dateOf(x)?'':'когда-нибудь'; tr.style.background=catBg(x.category); am.className='inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''); renderSt(); };
     const chg=fn=>e=>{ fn(e.target.value); refresh(); };
