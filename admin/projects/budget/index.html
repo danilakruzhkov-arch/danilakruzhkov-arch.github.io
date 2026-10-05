@@ -107,7 +107,7 @@ const rub=v=>disp==='USD'?nf.format(Math.round(D(v)))+' $':nf.format(Math.round(
 const sym=()=>disp==='USD'?'$':'₽';
 const UNIT={IDR:1000,LAK:1000}; const unit=c=>UNIT[c]||1; const curLabel=c=>c+(UNIT[c]?' тыс.':''); // IDR и LAK хранятся и вводятся в тысячах, как в таблице
 const money=(v,cur)=>(cur==='RUB'?nf.format(Math.round(v))+' ₽':nf2.format(v)+' '+curLabel(cur));
-const sign=v=>(v>0?'+':'')+nf.format(Math.round(v));
+const sign=v=>(v>0?'+':'')+nf.format(Math.round(v)||0);
 const rid=p=>p+Math.random().toString(36).slice(2,8);
 const uniq=a=>[...new Set(a)];
 const CURS=['RUB','USD','USDT','EUR','AED','IDR','TRY','GEL','LAK','CNY','THB'];
@@ -214,7 +214,7 @@ function otherSpend(){ // между снимками: ожидалось − ф
   const snaps=[...S().snapshots].sort((a,b)=>a.date<b.date?-1:1); const out=[];
   for(let i=0;i<snaps.length;i++){ const cur=snaps[i], prev=snaps[i-1]; const tot=snapTotal(cur); let other=null;
     if(prev){ const occ=occurrences(addDays(prev.date,1),cur.date).filter(o=>o.status==='auto'||o.status==='confirmed'); const expected=snapTotal(prev)+occ.reduce((s,o)=>s+signed(o),0); other=expected-tot; }
-    out.push({snap:cur,total:tot,usd:tot/(rate('USD')||1),other}); }
+    out.push({snap:cur,prev:prev||null,total:tot,usd:tot/(rate('USD')||1),other}); }
   return out;
 }
 
@@ -226,7 +226,7 @@ function materialize(){ // прошедшие даты регулярных пл
   for(const p of S().payments){ const sc=p.schedule; if(!sc||sc.type==='once'||!sc.start||sc.start>today||p.active===false) continue;
     const past=expand(sc,sc.start,today); if(!past.length) continue;
     for(const d of past){ const id=rid('p_'); const post=S().postings[p.id+'|'+d]; if(post){ S().postings[id+'|'+d]=post; delete S().postings[p.id+'|'+d]; }
-      add.push({id,name:p.name,kind:p.kind,scope:p.scope,category:p.category,amount:post&&post.amount!=null?post.amount:p.amount,currency:p.currency,accountId:p.accountId||null,debtId:p.debtId||null,schedule:{type:'once',date:d},mandatory:p.mandatory,active:true,note:p.note||'',fromId:p.id,order:(p.order||0)-0.5}); }
+      add.push({id,name:p.name,kind:p.kind,scope:p.scope,category:p.category,amount:post&&post.amount!=null?post.amount:p.amount,currency:p.currency,accountId:p.accountId||null,debtId:p.debtId||null,schedule:{type:'once',date:d},mandatory:p.mandatory,active:true,note:p.note||'',fromId:p.id,order:(p.order||0)-0.5,plan:post&&post.amount!=null?post.amount:p.amount,residual:!!p.residual}); }
     const next=expand(sc,addDays(today,1),addMonths(today,14))[0]||null; // следующий период от исходного старта: еженедельный держит день недели, ежемесячный не теряет day=31 после короткого месяца
     if(next){ sc.start=next; } else { p.active=false; p.note=(p.note?p.note+' · ':'')+'регулярный закончился'; }
     changed=true; }
@@ -330,6 +330,18 @@ function runCard(c,from,to,title){ // платежи за [from,to] с оста�
 // --- Платежи ---
 function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,today,addMonths(today,13))[0]||null; }
 function isSomeday(p){ const sc=p.schedule||{}; return sc.type==='once'?!sc.date:!sc.start; }
+function setAmount(p,v){ // прошедшая разовая строка: сумма = факт, план остаётся; иначе это правка плана, старое значение уходит в историю
+  v=parseFloat(v)||0; if(v===p.amount) return; const sc=p.schedule||{}; const past=sc.type==='once'&&!!sc.date&&sc.date<=todayISO();
+  if(past){ if(p.plan==null) p.plan=p.amount; p.amount=v; return; }
+  (p.hist=p.hist||[]).push({d:todayISO(),amount:p.amount}); p.amount=v; if(sc.type==='once') p.plan=v; }
+const isResid=p=>!!(p.residual||(p.fromId&&(S().payments.find(x=>x.id===p.fromId)||{}).residual)); // балансирующая строка: сюда раскидываются прочие траты между снимками
+function spreadOther(cur,prev,other){ // разница между ожидаемым и фактическим снимком раскидывается по фактам балансирующих строк за период, пропорционально их суммам
+  const occ=occurrences(addDays(prev.date,1),cur.date).filter(o=>(o.status==='auto'||o.status==='confirmed')&&o.kind==='expense');
+  const rows=[]; for(const o of occ){ const p=S().payments.find(x=>x.id===o.id); if(p&&(p.schedule||{}).type==='once'&&isResid(p)&&!rows.includes(p)) rows.push(p); }
+  if(!rows.length){ alert('За период нет проведённых балансирующих строк (флаг «сюда раскидывать прочие траты» в «…» платежа)'); return false; }
+  const tot=rows.reduce((t,p)=>t+toB(p.amount,p.currency),0); if(tot<=0){ alert('Суммы балансирующих строк нулевые'); return false; }
+  for(const p of rows){ if(p.plan==null) p.plan=p.amount; const share=other*toB(p.amount,p.currency)/tot; p.amount=Math.round((p.amount+share/(unit(p.currency)*rate(p.currency)||1))*100)/100; }
+  touch(); return true; }
 function movePosting(p,oldD,newD){ if(!oldD||oldD===newD) return; const k=p.id+'|'+oldD; const post=S().postings[k]; if(!post) return; delete S().postings[k]; if(newD&&newD<=todayISO()) S().postings[p.id+'|'+newD]=post; } // отметка статуса следует за датой разовой строки; в будущем статус снова «план»
 function setPayDate(p,iso){ const sc=p.schedule=p.schedule||{type:'once'}; if(sc.type==='once'){ movePosting(p,sc.date,iso||null); sc.date=iso||null; return; } sc.start=iso||null; if(!iso) return; if(sc.type==='monthly') sc.day=+iso.slice(8,10);
   const t=todayISO(); if(iso<t){ sc.start=expand({...sc,start:iso},t,addMonths(t,14))[0]||t; } } // регулярный с прошлой датой переносится на ближайший период: прошлые периоды заводятся разовыми
@@ -359,16 +371,16 @@ function vPay(w){
   const mper=i=>{ const k=mkey(addMonths(today,i)); return {label:fmtM(k),from:k+'-01',to:k+'-'+String(lastDay(+k.slice(0,4),+k.slice(5,7))).padStart(2,'0')}; };
   const periods=[{label:'Эта неделя',from:mon,to:addDays(mon,6)},{label:'След. неделя',from:addDays(mon,7),to:addDays(mon,13)},mper(0),mper(1),mper(2)];
   const pastP={label:'Прошедшие',from:addDays(snapD,1),to:addDays(today,-1)};
-  const calc=(from,to)=>{ const r={inc:0,incMand:0,exp:0,expMand:0,expOnce:0,expReg:0,sav:0,hang:0};
-    for(const o of occurrences(from,to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.status==='skipped') r.hang+=o.rub; if(o.kind==='income'){ r.inc+=o.rub; if(o.mandatory) r.incMand+=o.rub; } else if(o.kind==='saving') r.sav+=o.rub; else { r.exp+=o.rub; if(o.mandatory) r.expMand+=o.rub; if(stype(payById[o.id]||{})==='once') r.expOnce+=o.rub; else r.expReg+=o.rub; } }
+  const calc=(from,to)=>{ const r={inc:0,incMand:0,incPlan:0,exp:0,expMand:0,expPlan:0,expOnce:0,expReg:0,sav:0,hang:0};
+    for(const o of occurrences(from,to)){ if(o.status==='cancelled'||!inScope(o)) continue; if(o.status==='skipped') r.hang+=o.rub; const pp=payById[o.id]||{}; const planRub=pp.plan!=null&&stype(pp)==='once'?toB(pp.plan,pp.currency):o.rub; if(o.kind==='income'){ r.inc+=o.rub; r.incPlan+=planRub; if(o.mandatory) r.incMand+=o.rub; } else if(o.kind==='saving') r.sav+=o.rub; else { r.exp+=o.rub; r.expPlan+=planRub; if(o.mandatory) r.expMand+=o.rub; if(stype(payById[o.id]||{})==='once') r.expOnce+=o.rub; else r.expReg+=o.rub; } }
     r.rest=r.inc-r.exp-r.sav; r.debt=S().debts.filter(d=>d.dir!=='owed').reduce((t,d)=>t+toB(debtRemaining(d,to),d.currency),0);
     const credPaid=occurrences(addDays(snapD,1),to).filter(o=>o.status!=='cancelled'&&o.status!=='skipped'&&o.kind==='expense'&&o.scope==='personal'&&isCredCat(o)).reduce((t,o)=>t+o.rub,0);
     r.cred=Math.max(0,c.credDebt-credPaid); return r; };
   const renderSummary=()=>{ const cols=periods.map(pp=>calc(pp.from,pp.to));
-    const sc={inc:0,incMand:0,exp:0,expMand:0,expOnce:0,expReg:0,sav:0,debt:0,cred:0,hang:0};
-    for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income'){ sc.inc+=v; if(x.mandatory) sc.incMand+=v; } else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else { sc.exp+=v; if(x.mandatory) sc.expMand+=v; if(stype(x)==='once') sc.expOnce+=v; else sc.expReg+=v; } }
-    sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc); const pc=calc(pastP.from,pastP.to); for(const o of hangOld(snapD)){ if(!inScope(o)) continue; pc.exp+=o.rub; pc.hang+=o.rub; if(o.mandatory) pc.expMand+=o.rub; pc.rest-=o.rub; } cols.push(pc);
-    const ROWS=[['Доходы','inc','pos'],['— обязательные','incMand','muted'],['Расходы','exp',''],['— обязательные','expMand','muted'],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
+    const sc={inc:0,incMand:0,incPlan:0,exp:0,expMand:0,expPlan:0,expOnce:0,expReg:0,sav:0,debt:0,cred:0,hang:0};
+    for(const x of S().payments.filter(x=>inScope(x)&&isSomeday(x)&&x.active!==false)){ const v=toB(x.amount,x.currency); if(x.kind==='income'){ sc.inc+=v; sc.incPlan+=v; if(x.mandatory) sc.incMand+=v; } else if(x.kind==='saving') sc.sav+=v; else if(isDebtCat(x)) sc.debt+=v; else if(isCredCat(x)) sc.cred+=v; else { sc.exp+=v; sc.expPlan+=v; if(x.mandatory) sc.expMand+=v; if(stype(x)==='once') sc.expOnce+=v; else sc.expReg+=v; } }
+    sc.rest=sc.inc-sc.exp-sc.sav; cols.push(sc); const pc=calc(pastP.from,pastP.to); for(const o of hangOld(snapD)){ if(!inScope(o)) continue; pc.exp+=o.rub; pc.expPlan+=o.rub; pc.hang+=o.rub; if(o.mandatory) pc.expMand+=o.rub; pc.rest-=o.rub; } cols.push(pc);
+    const ROWS=[['Доходы','inc','pos'],['— обязательные','incMand','muted'],['— план','incPlan','muted'],['Расходы','exp',''],['— обязательные','expMand','muted'],['— план','expPlan','muted'],['— разовые','expOnce','muted'],['— регулярные','expReg','muted'],['Накопления','sav','blue'],['Остаток','rest','bold'],['Долги','debt','muted'],['Кредиты','cred','muted']];
     const sumT=el('table',{class:'sum'});
     cols.unshift(cols.pop()); // прошедшие первой колонкой
     sumT.append(el('thead',{},el('tr',{},el('th'),el('th',{class:'n'},'Прошедшие'),periods.map(pp=>el('th',{class:'n'},pp.label)),el('th',{class:'n'},'Когда-нибудь'))));
@@ -376,7 +388,7 @@ function vPay(w){
     sumT.append(el('tbody',{},ROWS.map(([n,k,cls])=>el('tr',{class:cls==='bold'?'bold':''},el('td',{class:cls==='muted'?'small muted':''},n),cols.map(r=>cell(r,k,cls))))));
     const hid=!!payFilter.sumHidden; const tg=el('button',{class:'ico',onclick:()=>{ payFilter.sumHidden=!payFilter.sumHidden; try{ localStorage.setItem('budget_sumhidden',payFilter.sumHidden?'1':''); }catch(e){} render(); }},hid?'показать':'свернуть');
     if(hid) return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg));
-    return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели пн–вс ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). «Прошедшие» = с '+fmtD(pastP.from)+' (после последнего снимка) по вчера'+(pc.hang?', из них висит не оплаченных '+rub(pc.hang):'')+'. Долги и кредиты в колонках = остаток на конец периода.')); };
+    return el('div',{class:'card'},el('div',{class:'row between'},el('h2',{},'Сводник, '+sym()),tg),el('div',{class:'tscroll'},sumT),el('div',{class:'hint'},'Недели пн–вс ('+fmtD(mon)+' – '+fmtD(addDays(mon,6))+'). «Прошедшие» = с '+fmtD(pastP.from)+' (после последнего снимка) по вчера'+(pc.hang?', из них висит не оплаченных '+rub(pc.hang):'')+'. Долги и кредиты в колонках = остаток на конец периода. «План» = суммы, с которыми проведённые строки родились; разница с «Доходы»/«Расходы» = план-факт.')); };
   let sumCard=renderSummary(); w.append(sumCard); w.append(forecastCard(c,true));
   // --- таблица
   let list=S().payments.filter(inScope); if(payFilter.past==='future') list=list.filter(x=>!isPast(x)); else if(payFilter.past==='noconf') list=list.filter(x=>!isConfPast(x)); else if(payFilter.past==='unconf') list=list.filter(x=>isPast(x)&&!isConfPast(x));
@@ -415,17 +427,18 @@ function vPay(w){
   const row=(x)=>{ const d=d0[x.id]; const tr=el('tr',{style:'background:'+catBg(x.category),class:isConfPast(x)?'done':''}); const ap=el('td',{class:'n muted'},approx(x)); const note=el('div',{class:'small muted'},d?'':'когда-нибудь');
     const stCell=el('td'); const renderSt=()=>{ stCell.innerHTML=''; const dd=dateOf(x); if(dd&&dd<=today){ const st=postStatus(x.id,dd); const sl=el('select',{class:'inline sm st-'+st},STATUS.map(([v,n])=>el('option',{value:v,selected:st===v?'':null},n))); sl.onchange=()=>{ if(sl.value==='confirmed'&&confirmOld(x,dd)){ touch(); render(); return; } if(sl.value==='auto') delete S().postings[x.id+'|'+dd]; else S().postings[x.id+'|'+dd]={status:sl.value}; refresh(); renderSt(); }; stCell.append(sl); } };
     // правка в строке без полной перерисовки, иначе теряется фокус в полях даты
-    const refresh=()=>{ touch(); const n=renderSummary(); sumCard.replaceWith(n); sumCard=n; tr.classList.toggle('done',isConfPast(x)); ap.textContent=approx(x); note.textContent=dateOf(x)?'':'когда-нибудь'; tr.style.background=catBg(x.category); am.className='inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''); renderSt(); };
+    const refresh=()=>{ touch(); renderPlan(); const n=renderSummary(); sumCard.replaceWith(n); sumCard=n; tr.classList.toggle('done',isConfPast(x)); ap.textContent=approx(x); note.textContent=dateOf(x)?'':'когда-нибудь'; tr.style.background=catBg(x.category); am.className='inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''); renderSt(); };
     const chg=fn=>e=>{ fn(e.target.value); refresh(); };
     const catSel=el('select',{class:'inline sm'},el('option',{value:''},'—'),S().categories.filter(ct=>ct.scope===x.scope).map(ct=>el('option',{value:ct.id,selected:x.category===ct.id?'':null},ct.name))); catSel.onchange=chg(v=>x.category=v||null);
     const nm=el('input',{type:'text',class:'inline wide',value:x.name}); nm.onchange=chg(v=>x.name=v);
     const kd=el('select',{class:'inline sm'},[['expense','расход'],['income','доход'],['saving','накопл.']].map(([v,n])=>el('option',{value:v,selected:(x.kind||'expense')===v?'':null},n))); kd.onchange=chg(v=>x.kind=v);
-    const am=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''),value:x.amount}); am.onchange=chg(v=>x.amount=parseFloat(v)||0);
+    const am=el('input',{type:'number',step:'0.01',inputmode:'decimal',class:'inline num'+(x.kind==='income'?' pos':x.kind==='saving'?' blue':''),value:x.amount}); am.onchange=chg(v=>setAmount(x,v));
     const cu=el('select',{class:'inline sm'},CURS.map(cc=>el('option',{value:cc,selected:x.currency===cc?'':null},cc))); cu.onchange=chg(v=>x.currency=v);
     const dt=el('input',{type:'date',class:'inline date',value:d||'',min:stype(x)==='once'?null:today}); dt.onchange=chg(v=>{ if(v&&v.slice(0,4)<'1900') return; setPayDate(x,v); }); dt.onblur=()=>{ const cur=dateOf(x)||''; if(dt.value!==cur) dt.value=cur; };
     const ty=el('select',{class:'inline sm'},TYPE_NAMES.map(([v,n])=>el('option',{value:v,selected:stype(x)===v?'':null},v==='once'&&x.fromId?'разовый (рег.)':n))); ty.onchange=chg(v=>{ setPayType(x,v); dt.min=v==='once'?'':today; dt.value=dateOf(x)||''; });
     renderSt();
-    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.salKey?el('div',{class:'small muted'},'из вкладки ЗП, сумма net'):x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
+    const planNote=el('div',{class:'small muted'}); const renderPlan=()=>{ planNote.textContent=x.plan!=null&&x.plan!==x.amount&&isPast(x)?'план '+money(x.plan,x.currency):''; }; renderPlan();
+    tr.append(el('td',{},catSel,x.scope==='clippoint'?el('div',{class:'small muted'},'ClipPoint'):null),el('td',{class:'grow'},nm,x.salKey?el('div',{class:'small muted'},'из вкладки ЗП, сумма net'):x.fromId?el('div',{class:'small muted'},'из регулярного'):null),el('td',{},kd),el('td',{class:'n'},am,planNote),el('td',{},cu),ap,el('td',{},dt,note),el('td',{},ty),stCell,
       el('td',{class:'n',style:'white-space:nowrap'},sk==='order'?[el('button',{class:'ico',onclick:()=>move(x,-1)},'▲'),el('button',{class:'ico',onclick:()=>move(x,1)},'▼')]:null,el('button',{class:'ico mand'+(x.mandatory?' on':''),title:x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным',onclick:e=>{ x.mandatory=!x.mandatory; e.currentTarget.classList.toggle('on',!!x.mandatory); e.currentTarget.textContent=x.mandatory?'☑':'☐'; e.currentTarget.title=x.mandatory?'Обязательный: нельзя сдвинуть или отказаться. Нажми, чтобы снять':'Необязательный. Нажми, чтобы пометить обязательным'; refresh(); }},x.mandatory?'☑':'☐'),el('button',{class:'ico',title:'Сделать копию',onclick:()=>{ const cp=JSON.parse(JSON.stringify(x)); cp.id=rid('p_'); cp.fromId=null; delete cp.salKey; cp.name=x.name+' (копия)'; cp.order=(x.order||0)+0.5; S().payments.push(cp); let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(z=>z.order=++n); touch(); render(); }},'⧉'),
         el('button',{class:'ico danger',title:'Удалить',onclick:()=>{ if(confirm('Удалить «'+x.name+'»?')){ S().payments=S().payments.filter(z=>z.id!==x.id); touch(); render(); } }},'✕'),
         el('button',{class:'ico',title:'Остальные поля',onclick:()=>editPayment(x)},'…')));
@@ -458,9 +471,9 @@ function editPayment(p){
   f.append(inp('Название','name'),el('div',{class:'f2'},sel('Вид','kind',[['expense','расход'],['income','доход'],['saving','накопление']]),sel('Контур','scope',[['personal','Личное'],['clippoint','ClipPoint']],()=>{ const nb=catSel(); catBox.replaceWith(nb); catBox=nb; })),
     catBox=catSel(),el('div',{class:'f2'},inp('Сумма','amount','number',{step:'0.01',inputmode:'decimal'}),sel('Валюта','currency',CURS.map(c=>[c,c]))),schedBox,
     el('div',{class:'f2'},sel('Гасит долг','debtId',[['','—'],...S().debts.map(d=>[d.id,d.name])]),sel('Счёт','accountId',[['','—'],...S().accounts.filter(a=>!a.archived).map(a=>[a.id,a.name])])),
-    chk('Обязательный','mandatory'),inp('Заметка','note'));
+    chk('Обязательный','mandatory'),chk('Сюда раскидывать прочие траты между снимками','residual'),p.plan!=null&&p.plan!==p.amount?el('div',{class:'small muted',style:'margin:6px 0'},'План '+money(p.plan,p.currency)+', факт '+money(p.amount,p.currency)):null,(p.hist||[]).length?el('div',{class:'small muted',style:'margin:6px 0'},'История плана: '+p.hist.map(h=>money(h.amount,p.currency)+' до '+fmtD(h.d)).join(' → ')+' → '+money(p.amount,p.currency)):null,inp('Заметка','note'));
   modal(isNew?'Новый платёж':'Платёж',f,[isNew?null:el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить платёж?')){ S().payments=S().payments.filter(x=>x.id!==p.id); touch(); closeModal(); render(); } }},'Удалить'),
-    el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; if(p.schedule.type!=='once'&&p.schedule.start&&p.schedule.start<todayISO()) setPayDate(p,p.schedule.start); const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0){ const was=S().payments[i]; if((was.schedule||{}).type==='once'&&p.schedule.type==='once') movePosting(was,was.schedule.date,p.schedule.date); S().payments[i]=p; } else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
+    el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; if(p.schedule.type!=='once'&&p.schedule.start&&p.schedule.start<todayISO()) setPayDate(p,p.schedule.start); const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0){ const was=S().payments[i]; if(was.amount!==p.amount){ const a=p.amount; p.amount=was.amount; setAmount(p,a); } if((was.schedule||{}).type==='once'&&p.schedule.type==='once') movePosting(was,was.schedule.date,p.schedule.date); S().payments[i]=p; } else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; if(p.schedule.type==='once') p.plan=p.amount; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
 }
 // --- ЗП ---
 const SAL_DEF={on:true,gross:700000,advPct:50,bonusPct:50,rating:100,start:'2026-10-19',advDay:15,payDay:30,bonusMonth:12,bonusDay:30,firstBonus:true,nonRes:false,category:null};
@@ -559,8 +572,8 @@ function vBal(w){
   // история
   const hist=otherSpend().reverse(); const cv=el('canvas',{id:'hc'});
   w.append(el('div',{class:'card'},el('h2',{},'История снимков'),cv,el('div',{class:'tscroll'},el('table',{},el('thead',{},el('tr',{},el('th',{},'Дата'),el('th',{class:'n'},'Итого, '+sym()),el('th',{class:'n'},disp==='USD'?'₽':'$'),el('th',{class:'n'},'Прочие траты'),el('th',{},''))),
-    el('tbody',{},hist.map(h=>el('tr',{class:'click',onclick:()=>{ balDate=h.snap.date; render(); }},el('td',{},fmtD(h.snap.date),h.snap.note?el('div',{class:'small muted'},h.snap.note):null),el('td',{class:'n'},nf.format(D(h.total))),el('td',{class:'n muted'},nf.format(disp==='USD'?h.total:h.usd)),el('td',{class:'n '+(h.other>0?'warn':'')},h.other==null?'—':sign(D(-h.other))),el('td',{class:'small muted'},'›')))))),
-    el('div',{class:'hint'},'Прочие траты = (предыдущий снимок + проведённые доходы − проведённые платежи) − фактический снимок. Положительное число = потрачено сверх плана, отрицательное = осталось больше, чем ожидалось.')));
+    el('tbody',{},hist.map(h=>el('tr',{class:'click',onclick:()=>{ balDate=h.snap.date; render(); }},el('td',{},fmtD(h.snap.date),h.snap.note?el('div',{class:'small muted'},h.snap.note):null),el('td',{class:'n'},nf.format(D(h.total))),el('td',{class:'n muted'},nf.format(disp==='USD'?h.total:h.usd)),el('td',{class:'n '+(h.other>0?'warn':'')},h.other==null?'—':sign(D(-h.other)),h.other&&Math.abs(h.other)>=1&&h.prev?el('button',{class:'sm',style:'margin-left:6px',title:'Раскидать по балансирующим строкам за период',onclick:e=>{ e.stopPropagation(); if(confirm('Раскидать '+rub(h.other)+' по проведённым балансирующим строкам с '+fmtD(h.prev.date)+' по '+fmtD(h.snap.date)+' пропорционально их суммам?')&&spreadOther(h.snap,h.prev,h.other)) render(); }},'раскидать'):null),el('td',{class:'small muted'},'›')))))),
+    el('div',{class:'hint'},'Прочие траты = (предыдущий снимок + проведённые доходы − проведённые платежи) − фактический снимок. Минус = потрачено сверх плана, плюс = осталось больше, чем ожидалось. «Раскидать» распределяет разницу по фактам балансирующих строк за период (флаг в «…» платежа, например «Расходы на жизнь»), план у них сохраняется.')));
   const c=compute(); w.append(runCard(c,c.last?addDays(c.last.date,1):c.today,c.series[c.series.length-1].date,'План остатков с последнего снимка до конца горизонта ('+(S().settings.forecastMonths||6)+' мес)'));
   setTimeout(()=>{ const h=[...hist].reverse(); new Chart(cv,{type:'line',data:{labels:h.map(x=>x.snap.date),datasets:[{data:h.map(x=>Math.round(x.total)),borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),borderWidth:2,pointRadius:3,tension:.2}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(h[i[0].dataIndex].snap.date),label:i=>rub(i.raw)}}},scales:{x:{ticks:{maxTicksLimit:6,callback:(v,i)=>fmtD(h[i].snap.date)},grid:{display:false}},y:{ticks:{callback:v=>nf.format(D(v)/1000)+'k'}}}}}); },0);
 }
