@@ -181,7 +181,7 @@ function occurrences(from,to){
 }
 const signed=o=>(o.kind==='income'?1:-1)*o.rub;
 function hangOld(upto){ // «висит» с датой по upto включительно: снимок их не закрывает, обязательство остаётся до оплаты или отмены
-  const out=[]; for(const [k,post] of Object.entries(S().postings)){ if(post.status!=='skipped') continue; const [id,dt]=k.split('|'); if(dt>upto) continue; const p=S().payments.find(x=>x.id===id); if(!p||p.active===false) continue; const amt=post.amount!=null?post.amount:p.amount;
+  const out=[]; for(const [k,post] of Object.entries(S().postings)){ if(post.status!=='skipped') continue; const [id,dt]=k.split('|'); if(dt>upto) continue; const p=S().payments.find(x=>x.id===id); if(!p||p.active===false) continue; if((p.schedule||{}).type==='once'&&p.schedule.date!==dt) continue; /* строку сдвинули, старая отметка не считается */ const amt=post.amount!=null?post.amount:p.amount;
     out.push({key:k,id,date:dt,name:p.name,kind:p.kind,scope:p.scope,category:p.category,amount:amt,currency:p.currency,rub:toB(amt,p.currency),status:'skipped',mandatory:p.mandatory,src:'payment',old:true}); }
   return out.sort((a,b)=>a.date<b.date?-1:1); }
 function confirmOld(p,date){ // оплата висящего с датой до снимка: разовая строка переезжает на сегодня, чтобы вычесться из остатка после снимка
@@ -330,7 +330,8 @@ function runCard(c,from,to,title){ // платежи за [from,to] с оста�
 // --- Платежи ---
 function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,today,addMonths(today,13))[0]||null; }
 function isSomeday(p){ const sc=p.schedule||{}; return sc.type==='once'?!sc.date:!sc.start; }
-function setPayDate(p,iso){ const sc=p.schedule=p.schedule||{type:'once'}; if(sc.type==='once'){ sc.date=iso||null; return; } sc.start=iso||null; if(!iso) return; if(sc.type==='monthly') sc.day=+iso.slice(8,10);
+function movePosting(p,oldD,newD){ if(!oldD||oldD===newD) return; const k=p.id+'|'+oldD; const post=S().postings[k]; if(!post) return; delete S().postings[k]; if(newD&&newD<=todayISO()) S().postings[p.id+'|'+newD]=post; } // отметка статуса следует за датой разовой строки; в будущем статус снова «план»
+function setPayDate(p,iso){ const sc=p.schedule=p.schedule||{type:'once'}; if(sc.type==='once'){ movePosting(p,sc.date,iso||null); sc.date=iso||null; return; } sc.start=iso||null; if(!iso) return; if(sc.type==='monthly') sc.day=+iso.slice(8,10);
   const t=todayISO(); if(iso<t){ sc.start=expand({...sc,start:iso},t,addMonths(t,14))[0]||t; } } // регулярный с прошлой датой переносится на ближайший период: прошлые периоды заводятся разовыми
 function setPayType(p,t){ const sc=p.schedule||{type:'once'}; if(sc.type===t) return; const nd=nextDate(p)||sc.start||sc.date||null;
   p.schedule=t==='once'?{type:'once',date:nd}:t==='weekly'?{type:'weekly',start:nd,end:null}:{type:'monthly',day:nd?+nd.slice(8,10):1,every:1,start:nd,end:null}; }
@@ -459,7 +460,7 @@ function editPayment(p){
     el('div',{class:'f2'},sel('Гасит долг','debtId',[['','—'],...S().debts.map(d=>[d.id,d.name])]),sel('Счёт','accountId',[['','—'],...S().accounts.filter(a=>!a.archived).map(a=>[a.id,a.name])])),
     chk('Обязательный','mandatory'),inp('Заметка','note'));
   modal(isNew?'Новый платёж':'Платёж',f,[isNew?null:el('button',{class:'danger',onclick:()=>{ if(confirm('Удалить платёж?')){ S().payments=S().payments.filter(x=>x.id!==p.id); touch(); closeModal(); render(); } }},'Удалить'),
-    el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; if(p.schedule.type!=='once'&&p.schedule.start&&p.schedule.start<todayISO()) setPayDate(p,p.schedule.start); const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0) S().payments[i]=p; else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
+    el('button',{class:'pri',onclick:()=>{ if(!p.name){ alert('Название'); return; } p.active=true; if(p.schedule.type!=='once'&&p.schedule.start&&p.schedule.start<todayISO()) setPayDate(p,p.schedule.start); const i=S().payments.findIndex(x=>x.id===p.id); if(i>=0){ const was=S().payments[i]; if((was.schedule||{}).type==='once'&&p.schedule.type==='once') movePosting(was,was.schedule.date,p.schedule.date); S().payments[i]=p; } else { p.order=Math.max(0,...S().payments.map(x=>x.order||0))+1; S().payments.push(p); } touch(); closeModal(); render(); }},'Сохранить')]);
 }
 // --- ЗП ---
 const SAL_DEF={on:true,gross:700000,advPct:50,bonusPct:50,rating:100,start:'2026-10-19',advDay:15,payDay:30,bonusMonth:12,bonusDay:30,firstBonus:true,nonRes:false,category:null};
