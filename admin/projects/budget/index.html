@@ -56,7 +56,7 @@
   select.inline { width:auto; padding:6px 8px; font-size:13px; } select.inline.sm { max-width:130px; }
   button.ico { padding:4px 7px; font-size:12px; margin-left:2px; } button.ico.danger { color:var(--red); } input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; } input[type=number] { -moz-appearance:textfield; appearance:textfield; } button.ico.mand { font-size:14px; color:var(--muted); } button.ico.mand.on { color:var(--ink); }
   table.pay { width:100%; } table.pay td { padding:5px 4px; } table.pay tr.grp td { padding:8px 6px; border-top:2px solid var(--line); } table.pay td.grow { width:40%; } table.pay td.grow input { width:100%; min-width:140px; } table.pay tr.done { opacity:.45; }
-  select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } tr.bold td { font-weight:700; } table.sum td:first-child { white-space:nowrap; } .blue { color:var(--blue); }
+  select.st-skipped { color:var(--red); } select.st-confirmed { color:var(--green); } tr.bold td { font-weight:700; } td.hot { font-weight:600; } td.dimc { opacity:.45; font-weight:400; } table.sum td:first-child { white-space:nowrap; } .blue { color:var(--blue); }
   label.f { display:block; margin-bottom:10px; }
   label.f span { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
   .f2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -297,13 +297,13 @@ function vNow(w){
     el('tbody',{},mk.map(k=>{ const m=c.months[k]; return el('tr',{},el('td',{},fmtM(k)),el('td',{class:'n pos'},nf.format(D(m.inc))),el('td',{class:'n'},nf.format(D(m.exp))),el('td',{class:'n '+(m.inc-m.exp<0?'neg':'pos')},sign(D(m.inc-m.exp))),el('td',{class:'n '+(m.end<0?'neg':'')},nf.format(D(m.end)))); })))),
     el('div',{class:'hint'},'«На конец» считается от последнего снимка через все проведённые и плановые платежи. Прочие траты между снимками в прогноз не входят, пока не заведены отдельной строкой в «Жизнь».')));
   if(c.due.length){ const d=el('div',{class:'card'},el('h2',{},'Висит, нужно провести')); c.due.forEach(o=>d.append(occRow(o,render))); w.append(d); }
-  w.append(runCard(c));
+  w.append(runCard(c,addDays(c.today,14),'С последнего снимка и 14 дней вперёд'));
 }
-function runCard(c){ // платежи с последнего снимка по +14 дней с остатками после каждого: итого, две главные валюты, прочее
-  const from=c.last?addDays(c.last.date,1):c.today, to=addDays(c.today,14);
+function runCard(c,to,title){ // платежи с последнего снимка по дату to с остатками после каждого: итого, две главные валюты, прочее
+  const from=c.last?addDays(c.last.date,1):c.today;
   const rows=c.occ.filter(o=>o.date>=from&&o.date<=to); const bal=snapByCur(c.last); const curs=usedCurs(c); const main=curs.filter(x=>bal[x]).slice(0,2); const other=()=>Object.keys(bal).filter(x=>!main.includes(x)).reduce((t,x)=>t+toB(bal[x],x),0); const total=()=>Object.keys(bal).reduce((t,x)=>t+toB(bal[x],x),0);
-  const cell=(v,cur)=>el('td',{class:'n small'+(v<0?' neg':'')},cur?nf.format(Math.round(v*100)/100):nf.format(Math.round(D(v))));
-  const balCells=()=>[cell(total()),...main.map(x=>cell(bal[x]||0,x)),cell(other())];
+  const cell=(v,cur,hot)=>el('td',{class:'n small'+(v<0?' neg':'')+(hot==null?'':hot?' hot':' dimc')},cur?nf.format(Math.round(v*100)/100):nf.format(Math.round(D(v))));
+  const balCells=ch=>[cell(total(),null,ch?true:null),...main.map(x=>cell(bal[x]||0,x,ch?ch===x:null)),cell(other(),null,ch?!main.includes(ch):null)]; // ch = валюта платежа: её колонка выделена, остальные приглушены
   const t=el('table',{},el('thead',{},el('tr',{},el('th',{},'Дата'),el('th',{},'Платёж'),el('th',{class:'n'},'Сумма'),el('th',{class:'n'},'Итого, '+sym()),...main.map(x=>el('th',{class:'n'},curLabel(x))),el('th',{class:'n'},'Прочее, '+sym()),el('th'))));
   const tb=el('tbody'); t.append(tb);
   tb.append(el('tr',{class:'bold'},el('td',{},c.last?fmtD(c.last.date):'—'),el('td',{},c.last?'снимок остатков':'снимка нет'),el('td'),...balCells(),el('td')));
@@ -311,9 +311,9 @@ function runCard(c){ // платежи с последнего снимка по
   for(const o of rows){ if(!todayShown&&o.date>c.today){ todayShown=true; tb.append(el('tr',{class:'bold'},el('td',{},fmtD(c.today)),el('td',{},'сегодня'),el('td'),...balCells(),el('td'))); }
     const applies=o.status==='confirmed'||o.status==='auto'||o.status==='planned'; if(applies) bal[o.currency]=(bal[o.currency]||0)+(o.kind==='income'?1:-1)*o.amount;
     tb.append(el('tr',{class:o.status==='cancelled'||o.status==='skipped'?'dim':''},el('td',{class:'small muted',style:'white-space:nowrap'},fmtD(o.date)),el('td',{},o.name,' ',occChip(o),el('div',{class:'small muted'},(o.category?catName(o.category):'')+(o.scope==='clippoint'?' · ClipPoint':''))),
-      el('td',{class:'n '+(o.kind==='income'?'pos':''),style:'white-space:nowrap'},(o.kind==='income'?'+':'−')+money(o.amount,o.currency)),...(applies?balCells():[el('td',{class:'n small muted'},'—'),...main.map(()=>el('td')),el('td')]),el('td',{},occActs(o,render)))); }
+      el('td',{class:'n '+(o.kind==='income'?'pos':''),style:'white-space:nowrap'},(o.kind==='income'?'+':'−')+money(o.amount,o.currency)),...(applies?balCells(o.currency):[el('td',{class:'n small muted'},'—'),...main.map(()=>el('td')),el('td')]),el('td',{},occActs(o,render)))); }
   if(!todayShown) tb.append(el('tr',{class:'bold'},el('td',{},fmtD(c.today)),el('td',{},'сегодня'),el('td'),...balCells(),el('td')));
-  return el('div',{class:'card'},el('h2',{},'С последнего снимка и 14 дней вперёд'),el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Остатки после каждого платежа от снимка: «Итого» по всем валютам по курсам, дальше две главные валюты в своих единицах, «Прочее» = остальные валюты. Отменённые и висящие остаток не меняют.'));
+  return el('div',{class:'card'},el('h2',{},title),el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Остатки после каждого платежа от снимка: «Итого» по всем валютам по курсам, дальше две главные валюты в своих единицах, «Прочее» = остальные валюты. Отменённые и висящие остаток не меняют.'));
 }
 // --- Платежи ---
 function nextDate(p,today){ today=today||todayISO(); return expand(p.schedule,today,addMonths(today,13))[0]||null; }
@@ -551,6 +551,7 @@ function vBal(w){
   w.append(el('div',{class:'card'},el('h2',{},'История снимков'),cv,el('div',{class:'tscroll'},el('table',{},el('thead',{},el('tr',{},el('th',{},'Дата'),el('th',{class:'n'},'Итого, '+sym()),el('th',{class:'n'},disp==='USD'?'₽':'$'),el('th',{class:'n'},'Прочие траты'),el('th',{},''))),
     el('tbody',{},hist.map(h=>el('tr',{class:'click',onclick:()=>{ balDate=h.snap.date; render(); }},el('td',{},fmtD(h.snap.date),h.snap.note?el('div',{class:'small muted'},h.snap.note):null),el('td',{class:'n'},nf.format(D(h.total))),el('td',{class:'n muted'},nf.format(disp==='USD'?h.total:h.usd)),el('td',{class:'n '+(h.other>0?'warn':'')},h.other==null?'—':sign(D(-h.other))),el('td',{class:'small muted'},'›')))))),
     el('div',{class:'hint'},'Прочие траты = (предыдущий снимок + проведённые доходы − проведённые платежи) − фактический снимок. Положительное число = потрачено сверх плана, отрицательное = осталось больше, чем ожидалось.')));
+  const c=compute(); w.append(runCard(c,c.series[c.series.length-1].date,'План остатков с последнего снимка до конца горизонта ('+(S().settings.forecastMonths||6)+' мес)'));
   setTimeout(()=>{ const h=[...hist].reverse(); new Chart(cv,{type:'line',data:{labels:h.map(x=>x.snap.date),datasets:[{data:h.map(x=>Math.round(x.total)),borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),borderWidth:2,pointRadius:3,tension:.2}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(h[i[0].dataIndex].snap.date),label:i=>rub(i.raw)}}},scales:{x:{ticks:{maxTicksLimit:6,callback:(v,i)=>fmtD(h[i].snap.date)},grid:{display:false}},y:{ticks:{callback:v=>nf.format(D(v)/1000)+'k'}}}}}); },0);
 }
 // --- Долги ---
