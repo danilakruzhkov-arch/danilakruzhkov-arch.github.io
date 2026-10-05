@@ -221,8 +221,8 @@ function materialize(){ // прошедшие даты регулярных пл
     const past=expand(sc,sc.start,today); if(!past.length) continue;
     for(const d of past){ const id=rid('p_'); const post=S().postings[p.id+'|'+d]; if(post){ S().postings[id+'|'+d]=post; delete S().postings[p.id+'|'+d]; }
       add.push({id,name:p.name,kind:p.kind,scope:p.scope,category:p.category,amount:post&&post.amount!=null?post.amount:p.amount,currency:p.currency,accountId:p.accountId||null,debtId:p.debtId||null,schedule:{type:'once',date:d},mandatory:p.mandatory,active:true,note:p.note||'',fromId:p.id,order:(p.order||0)-0.5}); }
-    const next=expand({...sc,start:addDays(today,1)},addDays(today,1),addMonths(today,14))[0]||null;
-    if(next){ sc.start=next; if(sc.type==='monthly') sc.day=+next.slice(8,10); } else { p.active=false; p.note=(p.note?p.note+' · ':'')+'регулярный закончился'; }
+    const next=expand(sc,addDays(today,1),addMonths(today,14))[0]||null; // следующий период от исходного старта: еженедельный держит день недели, ежемесячный не теряет day=31 после короткого месяца
+    if(next){ sc.start=next; } else { p.active=false; p.note=(p.note?p.note+' · ':'')+'регулярный закончился'; }
     changed=true; }
   if(add.length){ S().payments.push(...add); }
   if(changed){ let n=0; [...S().payments].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(x=>x.order=++n); touch(); }
