@@ -323,7 +323,7 @@ function runCard(c,from,to,title){ // платежи за [from,to] с оста�
   if(!sd) mark(null,'снимка нет, остатки не считаются');
   else if(sd<from){ for(const o of occurrences(addDays(sd,1),addDays(from,-1))) if(applies(o)) apply(o); startSnap(); } // снимок раньше периода: докручиваем остаток к началу
   const todayIn=c.today>=from&&c.today<=to; let todayShown=false;
-  for(const o of occurrences(from,to)){ if(!track&&sd&&o.date<=sd&&o.status==='skipped') continue; if(!track&&sd&&sd>=from&&sd<=to&&o.date>sd) startSnap(); // висящие до снимка показываются один раз, после него if(todayIn&&!todayShown&&o.date>c.today){ todayShown=true; mark(c.today,'сегодня'); } item(o); }
+  for(const o of occurrences(from,to)){ if(!track&&sd&&o.date<=sd&&o.status==='skipped') continue; if(!track&&sd&&sd>=from&&sd<=to&&o.date>sd) startSnap(); /* висящие до снимка показываются один раз, после него */ if(todayIn&&!todayShown&&o.date>c.today){ todayShown=true; mark(c.today,'сегодня'); } item(o); }
   if(!track&&sd&&sd>=from&&sd<=to) startSnap(); if(todayIn&&!todayShown) mark(c.today,'сегодня');
   return el('div',{class:'card'},el('h2',{},title),el('div',{class:'tscroll'},t),el('div',{class:'hint'},'Остатки после каждого платежа от снимка: «Итого» по всем валютам по курсам, дальше две главные валюты в своих единицах, «Прочее» = остальные валюты. До снимка платежи показаны без остатков. Висящие с датой до снимка вычитаются сразу после него как обязательство; отменённые и висящие после снимка остаток не меняют.'));
 }
