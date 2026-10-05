@@ -283,7 +283,7 @@ function forecastCard(c,collapsible){
   const fmt=v=>fcCur==='all'?rub(v):money(v,fcCur);
   card.append(el('div',{class:'hint'},'Минимум '+fmt(mn.bal)+' '+fmtD(mn.date)+(fcCur==='all'?'. Все валюты по курсам из настроек':'. Только остатки и платежи в '+fcCur+', без конвертации')+'. Горизонт '+(S().settings.forecastMonths||6)+' мес.'));
   setTimeout(()=>{ const labels=ser.map(s=>s.date); if(charts.fc) charts.fc.destroy(); charts.fc=new Chart(cv,{type:'line',data:{labels,datasets:[{data:ser.map(s=>Math.round(fcCur==='all'?s.bal:s.bal*100)/(fcCur==='all'?1:100)),borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),borderWidth:2,pointRadius:0,fill:{target:'origin',above:'rgba(30,142,62,.08)',below:'rgba(217,48,37,.12)'},tension:.05}]},
-    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(labels[i[0].dataIndex]),label:i=>fmt(i.raw)}}},scales:{x:{ticks:{maxTicksLimit:7,callback:(v,i)=>fmtD(labels[i])},grid:{display:false}},y:{ticks:{callback:v=>fcCur==='all'?nf.format(D(v)/1000)+'k':nf.format(v)}}}}}); },0);
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtD(labels[i[0].dataIndex]),label:i=>fmt(i.raw)}}},scales:{x:{ticks:{autoSkip:false,maxRotation:0,callback:(v,i)=>i===0?fmtD(labels[i]):labels[i].endsWith('-01')?MONTHS[+labels[i].slice(5,7)-1]+(labels[i].slice(5,7)==='01'?' '+labels[i].slice(2,4):''):null},grid:{color:ctx=>labels[ctx.index]&&labels[ctx.index].endsWith('-01')?'rgba(128,128,128,.35)':'transparent'}},y:{ticks:{callback:v=>fcCur==='all'?nf.format(D(v)/1000)+'k':nf.format(v)}}}}}); },0); // подписи и разделители только по первым числам месяцев
   return card;
 }
 // --- Сейчас ---
